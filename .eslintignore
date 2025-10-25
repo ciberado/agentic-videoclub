@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+coverage/
+
+# Config files
+commitlint.config.js
+.eslintrc.js
+.prettierrc.js
+*.config.js
+
+# JavaScript assets meant for direct consumption by other applications
+# These are not transformed and should not be subject to our linting rules
+packages/assessment-frontend/public/js/*.js
+
+# Other
+.DS_Store
+.env
+.env.*
+!.env.example

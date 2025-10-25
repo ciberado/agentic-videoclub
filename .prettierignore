@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+coverage/
+
+# Other
+.DS_Store
+.env
+.env.*
+!.env.example

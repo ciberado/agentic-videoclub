@@ -1,0 +1,48 @@
+*.zzz
+tmp/
+
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# testing
+coverage
+packages/*/coverage/
+*.lcov
+
+# production
+build
+dist
+packages/*/dist/
+*.tsbuildinfo
+
+# authentication database
+*.sqlite
+*.db
+*.sqlite-shm
+*.sqlite-wal
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# logs
+*.log
+logs/
+packages/*/logs/
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+.env
+

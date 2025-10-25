@@ -1,0 +1,16 @@
+{
+  "name": "Node.js & TypeScript",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/tmux-apt-get:1": {},
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
+  },
+  "forwardPorts": [],
+  "portsAttributes": {
+  },
+  "postCreateCommand": "curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' --output vscode_cli.tar.gz && tar -xf vscode_cli.tar.gz && sudo mv code /usr/local/bin/code-cli && rm vscode_cli.tar.gz && wget -O ~/.tmux.conf https://raw.githubusercontent.com/gpakosz/.tmux/master/.tmux.conf && wget -O ~/.tmux.conf.local https://raw.githubusercontent.com/gpakosz/.tmux/master/.tmux.conf.local"
+
+}
