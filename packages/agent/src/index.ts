@@ -1,4 +1,4 @@
-import { StateGraph, START, END } from '@langchain/langgraph';
+import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import logger from './config/logger';
 import { 
   logNodeStart, 
@@ -43,29 +43,32 @@ interface MovieEvaluation {
   familyAppropriate: boolean;
 }
 
-interface VideoRecommendationAgentState {
+// Define the state using modern Annotation pattern
+const VideoRecommendationAgentState = Annotation.Root({
   // Input from user
-  userInput: string;
+  userInput: Annotation<string>,
   
   // Enhanced criteria from prompt enhancement node
-  enhancedUserCriteria: UserCriteria | null;
+  enhancedUserCriteria: Annotation<UserCriteria | null>,
   
   // Movies discovered and fetched
-  discoveredMoviesBatch: Movie[];
+  discoveredMoviesBatch: Annotation<Movie[]>,
   
   // Evaluation results
-  evaluatedMoviesBatch: MovieEvaluation[];
-  qualityGatePassedSuccessfully: boolean;
-  highConfidenceMatchCount: number;
+  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>,
+  qualityGatePassedSuccessfully: Annotation<boolean>,
+  highConfidenceMatchCount: Annotation<number>,
   
   // Control flow state
-  searchAttemptNumber: number;
-  maximumSearchAttempts: number;
-  finalRecommendations: MovieEvaluation[];
+  searchAttemptNumber: Annotation<number>,
+  maximumSearchAttempts: Annotation<number>,
+  finalRecommendations: Annotation<MovieEvaluation[]>,
   
   // Error handling
-  lastErrorMessage?: string;
-}
+  lastErrorMessage: Annotation<string | undefined>,
+});
+
+
 
 // ===== FAKE DATA GENERATORS =====
 
@@ -174,7 +177,7 @@ const fakeMovieDatabase = [
 
 // ===== NODE IMPLEMENTATIONS =====
 
-async function promptEnhancementNode(state: VideoRecommendationAgentState): Promise<Partial<VideoRecommendationAgentState>> {
+async function promptEnhancementNode(state: typeof VideoRecommendationAgentState.State): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
   const nodeId = 'prompt_enhancement_node';
   const startTime = logNodeStart(nodeId, 'enhance_user_input', { userInput: state.userInput });
   
@@ -222,7 +225,7 @@ async function promptEnhancementNode(state: VideoRecommendationAgentState): Prom
   };
 }
 
-async function movieDiscoveryAndDataFetchingNode(state: VideoRecommendationAgentState): Promise<Partial<VideoRecommendationAgentState>> {
+async function movieDiscoveryAndDataFetchingNode(state: typeof VideoRecommendationAgentState.State): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
   const nodeId = 'movie_discovery_and_data_fetching_node';
   const startTime = logNodeStart(nodeId, 'discover_and_fetch_movie_batch', { 
     searchAttempt: state.searchAttemptNumber,
@@ -288,7 +291,7 @@ async function movieDiscoveryAndDataFetchingNode(state: VideoRecommendationAgent
   };
 }
 
-async function intelligentEvaluationNode(state: VideoRecommendationAgentState): Promise<Partial<VideoRecommendationAgentState>> {
+async function intelligentEvaluationNode(state: typeof VideoRecommendationAgentState.State): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
   const nodeId = 'intelligent_evaluation_node';
   const startTime = logNodeStart(nodeId, 'evaluate_movie_batch_quality', {
     batchSize: state.discoveredMoviesBatch.length,
@@ -317,7 +320,7 @@ async function intelligentEvaluationNode(state: VideoRecommendationAgentState): 
     let confidenceScore = 0.5; // Base score
     
     // Boost score for preferred genres
-    if (state.enhancedUserCriteria?.enhancedGenres.some(genre => movie.genre.includes(genre))) {
+    if (state.enhancedUserCriteria?.enhancedGenres.some((genre: string) => movie.genre.includes(genre))) {
       confidenceScore += 0.3;
     }
     
@@ -327,7 +330,7 @@ async function intelligentEvaluationNode(state: VideoRecommendationAgentState): 
     }
     
     // Reduce score for excluded genres
-    if (state.enhancedUserCriteria?.excludeGenres.some(genre => movie.genre.includes(genre))) {
+    if (state.enhancedUserCriteria?.excludeGenres.some((genre: string) => movie.genre.includes(genre))) {
       confidenceScore -= 0.2;
     }
     
@@ -350,7 +353,7 @@ async function intelligentEvaluationNode(state: VideoRecommendationAgentState): 
       movieTitle: movie.title,
       confidenceScore: confidenceScore.toFixed(2),
       familyAppropriate: evaluation.familyAppropriate,
-      matchingGenres: movie.genre.filter(g => state.enhancedUserCriteria?.enhancedGenres.includes(g))
+      matchingGenres: movie.genre.filter((g: string) => state.enhancedUserCriteria?.enhancedGenres.includes(g))
     });
   }
 
@@ -391,7 +394,7 @@ async function intelligentEvaluationNode(state: VideoRecommendationAgentState): 
   };
 }
 
-async function batchControlAndRoutingNode(state: VideoRecommendationAgentState): Promise<Partial<VideoRecommendationAgentState>> {
+async function batchControlAndRoutingNode(state: typeof VideoRecommendationAgentState.State): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
   const nodeId = 'batch_control_and_routing_node';
   const startTime = logNodeStart(nodeId, 'control_batch_flow_and_routing', {
     qualityGatePassed: state.qualityGatePassedSuccessfully,
@@ -420,7 +423,7 @@ async function batchControlAndRoutingNode(state: VideoRecommendationAgentState):
 
     // Sort by confidence score and take top recommendations
     finalRecommendations = state.evaluatedMoviesBatch
-      .sort((a, b) => b.confidenceScore - a.confidenceScore)
+      .sort((a: MovieEvaluation, b: MovieEvaluation) => b.confidenceScore - a.confidenceScore)
       .slice(0, 5); // Top 5 recommendations
 
     logger.info('🏆 Final recommendations compiled successfully', {
@@ -476,7 +479,7 @@ async function batchControlAndRoutingNode(state: VideoRecommendationAgentState):
 
     // Return the best movies we found, even if they don't meet the quality threshold
     finalRecommendations = state.evaluatedMoviesBatch
-      .sort((a, b) => b.confidenceScore - a.confidenceScore)
+      .sort((a: MovieEvaluation, b: MovieEvaluation) => b.confidenceScore - a.confidenceScore)
       .slice(0, 3); // At least 3 recommendations
 
     logger.info('📋 Best available recommendations compiled', {
@@ -526,7 +529,7 @@ function generateFakeReasoning(movie: Movie, criteria: UserCriteria, score: numb
 
 // ===== ROUTING LOGIC =====
 
-function shouldContinueSearching(state: VideoRecommendationAgentState): string {
+function shouldContinueSearching(state: typeof VideoRecommendationAgentState.State): string {
   logger.debug('🔀 Evaluating routing decision', {
     qualityGatePassed: state.qualityGatePassedSuccessfully,
     searchAttempt: state.searchAttemptNumber,
@@ -559,20 +562,7 @@ function shouldContinueSearching(state: VideoRecommendationAgentState): string {
 
 // ===== LANGGRAPH WORKFLOW DEFINITION =====
 
-const videoRecommendationWorkflow = new StateGraph<VideoRecommendationAgentState>({
-  channels: {
-    userInput: null,
-    enhancedUserCriteria: null,
-    discoveredMoviesBatch: null,
-    evaluatedMoviesBatch: null,
-    qualityGatePassedSuccessfully: null,
-    highConfidenceMatchCount: null,
-    searchAttemptNumber: null,
-    maximumSearchAttempts: null,
-    finalRecommendations: null,
-    lastErrorMessage: null
-  }
-})
+const videoRecommendationWorkflow = new StateGraph(VideoRecommendationAgentState)
   .addNode('prompt_enhancement_node', promptEnhancementNode)
   .addNode('movie_discovery_and_data_fetching_node', movieDiscoveryAndDataFetchingNode)
   .addNode('intelligent_evaluation_node', intelligentEvaluationNode)
@@ -595,7 +585,7 @@ async function runVideoRecommendationAgent(userInput: string) {
     userInput: userInput
   });
 
-  const initialState: VideoRecommendationAgentState = {
+  const initialState: typeof VideoRecommendationAgentState.State = {
     userInput,
     enhancedUserCriteria: null,
     discoveredMoviesBatch: [],
@@ -604,7 +594,8 @@ async function runVideoRecommendationAgent(userInput: string) {
     highConfidenceMatchCount: 0,
     searchAttemptNumber: 1,
     maximumSearchAttempts: 3,
-    finalRecommendations: []
+    finalRecommendations: [],
+    lastErrorMessage: undefined
   };
 
   try {
@@ -642,7 +633,8 @@ async function runVideoRecommendationAgent(userInput: string) {
 
 // Export the main function and types for testing
 export { runVideoRecommendationAgent };
-export type { VideoRecommendationAgentState, MovieEvaluation };
+export type { MovieEvaluation };
+export type VideoRecommendationAgentStateType = typeof VideoRecommendationAgentState.State;
 
 // Run the agent with example input only when this file is executed directly
 if (require.main === module) {

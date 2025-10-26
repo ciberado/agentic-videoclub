@@ -59,5 +59,13 @@ This monorepo is organized under `packages/`, with each subfolder representing a
 - `.eslintrc.json`, `.prettierrc` — Lint/format configs
 - `commitlint.config.js` — Commit message rules
 
+### Technology Stack
+- **LangGraph.js**: Workflow orchestration and state management
+- **TypeScript**: Type safety and better developer experience
+- **Native nodejs**: HTTP client for web scraping
+- **Cheerio**: HTML parsing for data extraction
+- **LangChain AWS**: LLM integration for content analysis, using Bedrock
+- **Winston**: Structured logging with DEBUG level as default for comprehensive tracing
+
 ---
 If any conventions or workflows are unclear, please request clarification or provide examples to improve this guide.
