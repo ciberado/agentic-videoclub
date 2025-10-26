@@ -1,67 +1,143 @@
-# Video Recommendation Agent - Design Document
+# Video Recommendation Agent - Design Document (Updated)
 
 ## Overview
 
-This document outlines the architectural decisions for building a video recommendation agent using LangGraph.js and TypeScript. The agent is designed as an educational exercise to demonstrate complex workflow orchestration with both deterministic and LLM-powered nodes.
+This document outlines the architectural decisions for building a video recommendation agent using LangGraph.js and TypeScript. The agent processes natural language user requests to discover, fetch, and evaluate movies through an intelligent multi-phase workflow with adaptive search capabilities.
 
 ## System Architecture
 
 ### High-Level Flow
-The agent follows a simplified 4-node architecture with conditional routing:
+The agent follows a 4-node architecture with intelligent prompt enhancement and adaptive batch processing:
 
-1. **Movie Discovery** → 2. **Smart Filtering** → 3. **Content Acquisition** → 4. **Flow Control**
+1. **Prompt Enhancement** → 2. **Movie Discovery & Data Fetching** → 3. **Intelligent Evaluation** → 4. **Batch Control & Routing**
+
+### Architecture Diagram
+
+```mermaid
+graph TD
+    A["User Input: 49yo sci-fi fan, hates cheesy stories, family movie night"] --> B[Prompt Enhancement Node]
+    
+    B --> |"Enhanced Criteria: Genres, themes, family-friendly"| C[Movie Discovery & Data Fetching Node]
+    
+    C --> |"Batch of Movies (10-15 movies)"| D[Intelligent Evaluation Node]
+    
+    D --> |"Quality Assessment & Confidence Scores"| E[Batch Control & Routing Node]
+    
+    E --> |"Quality Gate Passed (≥3 high-confidence matches)"| F[Final Recommendations]
+    
+    E --> |"Quality Gate Failed - Expand search criteria"| G[Adapt Search Strategy]
+    G --> |"Modified Parameters: New genres/time periods"| C
+    
+    E --> |"Max Attempts Reached"| H[Best Available Results]
+    
+    style B fill:#e1f5fe
+    style D fill:#e8f5e8
+    style E fill:#fff3e0
+    style F fill:#e8f5e8
+    style H fill:#ffebee
+    
+    classDef llmNode fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef deterministic fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef evaluation fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef routing fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class B llmNode
+    class C deterministic
+    class D evaluation
+    class E routing
+```
 
 ### Node Design Decisions
 
-#### 1. Movie Discovery Node (`movie_discovery`)
-**Responsibility**: Data collection and normalization
-- Scrapes movie listing websites for candidate movies
-- Fetches detailed information for each movie (recursive HTTP calls)
-- Normalizes and structures scraped data
-- **Design Choice**: Grouped multiple scraping operations into one node for simplicity
+#### 1. Prompt Enhancement Node (`prompt_enhancement`)
+**Responsibility**: Natural language processing and context enrichment
+- **LLM Analysis**: Interprets user's natural language description ("49 years old guy that loves science fiction and hates cheesy stories")
+- **Context Expansion**: Adds demographic insights, genre mappings, and preference clarifications
+- **Search Strategy**: Generates specific search terms, filters, and quality criteria
+- **Family Context**: Identifies family-appropriate content requirements when mentioned
+- **Design Choice**: Front-loads intelligence to improve downstream search accuracy
 
-#### 2. Smart Filtering Node (`smart_filtering`) 
-**Responsibility**: Intelligent content analysis and filtering
-- **LLM Analysis**: Uses language models for thematic analysis and mood detection
-- **Deterministic Filtering**: Applies user criteria (genre, year, rating, etc.)
-- **Quality Gate**: Simple threshold check (>3 candidates = success)
-- **Design Choice**: Combined LLM and rule-based filtering for hybrid intelligence
+**Example Enhancement**:
+```
+Input: "I'm a 49 years old guy that loves science fiction and hates cheesy stories"
+Enhanced Output: {
+  genres: ["Science Fiction", "Thriller", "Drama"],
+  excludeGenres: ["Romance", "Comedy", "Musical"],
+  ageGroup: "Adult",
+  familyFriendly: false,
+  preferredThemes: ["Hard sci-fi", "Dystopian", "Space exploration"],
+  avoidThemes: ["Romantic subplots", "Slapstick humor", "Overly dramatic"]
+}
+```
 
-#### 3. Content Acquisition Node (`content_acquisition`)
-**Responsibility**: Torrent search and quality selection
-- Searches torrent sites for available content
-- Evaluates quality, seeds, and availability
-- Selects optimal download links
-- **Design Choice**: Abstracted the multi-step torrent process into one logical unit
+#### 2. Movie Discovery & Data Fetching Node (`movie_discovery_fetching`)
+**Responsibility**: Recursive data collection and structured extraction
+- **Initial Discovery**: Scrapes movie listing websites using enhanced search criteria
+- **Recursive Fetching**: For each discovered movie, recursively fetches detailed information via HTTP calls
+- **Link Following**: Automatically follows movie detail links to gather comprehensive data
+- **Structured Data Generation**: Converts scraped HTML into structured movie objects with metadata
+- **Batch Processing**: Processes movies in configurable batches (default: 10-15 movies per batch)
+- **Design Choice**: Combines discovery and detailed fetching for efficiency and data completeness
 
-#### 4. Flow Control Node (`flow_control`)
-**Responsibility**: Conditional routing and loop management
-- Decides whether to proceed to download or expand search
-- Routes back to discovery if quality gate fails
-- Manages search criteria expansion
-- **Design Choice**: Centralized routing logic for cleaner state management
+#### 3. Intelligent Evaluation Node (`intelligent_evaluation`)
+**Responsibility**: LLM-powered quality assessment and matching
+- **Batch Analysis**: Evaluates the current batch of movies against enhanced user criteria
+- **Semantic Matching**: Uses LLM to assess thematic alignment, mood, and content appropriateness
+- **Quality Scoring**: Generates confidence scores for each movie's match quality
+- **Family Appropriateness**: Evaluates content suitability when family viewing is specified
+- **Batch Quality Gate**: Determines if current batch meets minimum quality threshold (e.g., ≥3 high-confidence matches)
+- **Design Choice**: Pure LLM approach for nuanced understanding of user preferences and content analysis
+
+#### 4. Batch Control & Routing Node (`batch_control_routing`)
+**Responsibility**: Adaptive search management and flow control
+- **Quality Assessment**: Reviews evaluation results and batch quality metrics
+- **Routing Decisions**: 
+  - Success → Compile final recommendations
+  - Insufficient Quality → Trigger new batch with expanded/modified search criteria
+- **Search Strategy Adaptation**: Adjusts search parameters, genres, or time periods for next iteration
+- **Loop Management**: Prevents infinite loops with maximum attempt limits
+- **Design Choice**: Centralized adaptive logic for intelligent search refinement
 
 ## Key Architectural Decisions
 
-### Simplified Quality Gate
-- **Decision**: Use simple threshold (>3 candidates) instead of complex quality metrics
-- **Rationale**: Keeps initial implementation manageable while demonstrating the pattern
-- **Future**: Can be enhanced with sophisticated scoring algorithms
-
-### Node Grouping Strategy
-- **Decision**: 4 "thick" nodes instead of 8-10 "thin" nodes
+### Enhanced Prompt Processing
+- **Decision**: Dedicated LLM-powered prompt enhancement as first step
 - **Rationale**: 
-  - Easier state management in LangGraph
-  - Fewer edge relationships to maintain
-  - Better for debugging and error handling
-  - Simpler conditional routing
+  - Transforms vague user requests into structured search criteria
+  - Improves search accuracy and relevance
+  - Handles contextual requirements (family-friendly, age-appropriate)
+  - Reduces downstream processing complexity
+
+### Recursive Data Fetching
+- **Decision**: Single node handles both discovery and detailed fetching
+- **Rationale**:
+  - Minimizes state complexity between discovery and detail fetching
+  - Enables intelligent link following and data extraction
+  - Batch processing for efficient resource utilization
+  - Structured data generation for consistent downstream processing
+
+### Batch-Based Quality Evaluation
+- **Decision**: Process and evaluate movies in configurable batches
+- **Rationale**:
+  - Prevents overwhelming the LLM with too many movies at once
+  - Enables early termination when sufficient quality matches are found
+  - Allows for adaptive search refinement between batches
+  - Better resource management and response times
+
+### Adaptive Search Strategy
+- **Decision**: Centralized routing node with search strategy adaptation
+- **Rationale**:
+  - Intelligent retry logic with modified search criteria
+  - Prevents infinite loops while maximizing search coverage
+  - Learns from previous batch results to improve next iteration
+  - Clear separation between evaluation and flow control logic
 
 ### Hybrid Intelligence Approach
-- **Decision**: Mix deterministic logic with LLM-powered analysis
+- **Decision**: Strategic mix of LLM and deterministic processing
 - **Rationale**:
-  - LLMs excel at semantic understanding (themes, mood, similarity)
-  - Deterministic rules handle concrete criteria (year, rating, genre)
-  - Combines reliability with intelligence
+  - LLMs excel at semantic understanding and contextual analysis
+  - Deterministic logic handles data fetching and structured operations
+  - Combines reliability with intelligent content understanding
 
 ### Technology Stack
 - **LangGraph.js**: Workflow orchestration and state management
