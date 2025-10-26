@@ -144,7 +144,8 @@ Enhanced Output: {
 - **TypeScript**: Type safety and better developer experience
 - **Native nodejs**: HTTP client for web scraping
 - **Cheerio**: HTML parsing for data extraction
-- **LangChain AWS**: LLM integration for content analysis, using Bedrock.
+- **LangChain AWS**: LLM integration for content analysis, using Bedrock
+- **Winston**: Structured logging with DEBUG level as default for comprehensive tracing
 
 ## State Management
 
@@ -194,4 +195,9 @@ This architecture demonstrates:
 - All HTTP operations include retry logic and rate limiting
 - LLM calls are cached to reduce API costs
 - Error boundaries prevent single failures from crashing the entire workflow
-- Comprehensive logging for debugging and monitoring
+- **Winston Logging**: Comprehensive structured logging with DEBUG level default
+  - Node-level execution tracking with timing metrics
+  - HTTP request/response logging for data fetching operations
+  - LLM interaction logging with token usage and response times
+  - Quality gate evaluation results and decision reasoning
+  - Search strategy adaptation tracking for iterative improvements
