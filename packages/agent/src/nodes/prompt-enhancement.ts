@@ -51,23 +51,43 @@ export async function promptEnhancementNode(
     inputLength: state.userInput.length 
   });
 
-  // Simulate LLM analysis of user input
-  logLlmRequest('claude-3-haiku', `Analyze user preferences: "${state.userInput}"`, 450);
-  await simulateDelay(150); // Simulate LLM processing time
+  // Use real LLM analysis of user input
+  let enhancedCriteria: UserCriteria;
   
-  // Generate fake enhanced criteria based on the input
-  const enhancedCriteria: UserCriteria = {
-    originalInput: state.userInput,
-    enhancedGenres: ["Science Fiction", "Drama", "Thriller"],
-    excludeGenres: ["Romance", "Comedy", "Musical", "Horror"],
-    ageGroup: "Adult",
-    familyFriendly: state.userInput.toLowerCase().includes('family'),
-    preferredThemes: ["Hard sci-fi", "Philosophical", "Future dystopia", "Space exploration"],
-    avoidThemes: ["Cheesy dialogue", "Romantic subplots", "Slapstick humor", "Overly dramatic"],
-    searchTerms: ["science fiction", "intelligent sci-fi", "adult sci-fi", "serious sci-fi"]
-  };
-  
-  logLlmResponse('claude-3-haiku', 'Enhanced user criteria with genre mapping and theme analysis', 280, 150);
+  try {
+    // Import the LLM service dynamically to avoid compilation issues during development
+    const { analyzeUserPreferences } = await import('../services/llm');
+    enhancedCriteria = await analyzeUserPreferences(state.userInput);
+    
+    logger.info('🤖 Real LLM analysis completed', {
+      nodeId,
+      enhancedGenres: enhancedCriteria.enhancedGenres,
+      familyFriendly: enhancedCriteria.familyFriendly
+    });
+    
+  } catch (error) {
+    logger.warn('⚠️ LLM analysis failed, falling back to rule-based analysis', {
+      nodeId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    
+    // Fallback to rule-based analysis when LLM is not available
+    logLlmRequest('claude-3-haiku', `Analyze user preferences: "${state.userInput}"`, 450);
+    await simulateDelay(150); // Simulate LLM processing time
+    
+    enhancedCriteria = {
+      originalInput: state.userInput,
+      enhancedGenres: ["Science Fiction", "Drama", "Thriller"],
+      excludeGenres: ["Romance", "Comedy", "Musical", "Horror"],
+      ageGroup: "Adult", 
+      familyFriendly: state.userInput.toLowerCase().includes('family'),
+      preferredThemes: ["Hard sci-fi", "Philosophical", "Future dystopia", "Space exploration"],
+      avoidThemes: ["Cheesy dialogue", "Romantic subplots", "Slapstick humor", "Overly dramatic"],
+      searchTerms: ["science fiction", "intelligent sci-fi", "adult sci-fi", "serious sci-fi"]
+    };
+    
+    logLlmResponse('claude-3-haiku', 'Enhanced user criteria with genre mapping and theme analysis', 280, 150);
+  }
   
   logger.info('✨ Prompt enhancement completed successfully', {
     nodeId,
