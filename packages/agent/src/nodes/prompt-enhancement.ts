@@ -8,7 +8,7 @@ import {
 import { simulateDelay } from '../data/generators';
 import type { UserCriteria } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
-import { analyzeUserPreferences } from '../services/llm';
+import { analyzeUserPreferences } from '../services/prompt-enhancement-llm';
 
 /**
  * Prompt Enhancement Node - Natural Language Processing & Context Enrichment
@@ -52,20 +52,21 @@ export async function promptEnhancementNode(
     inputLength: state.userInput.length 
   });
 
-  // Use real LLM analysis of user input
+  // Use specialized LLM analysis of user input  
   let enhancedCriteria: UserCriteria;
   
   try {
     enhancedCriteria = await analyzeUserPreferences(state.userInput);
     
-    logger.info('🤖 Real LLM analysis completed', {
+    logger.info('🤖 Prompt enhancement LLM analysis completed', {
       nodeId,
       enhancedGenres: enhancedCriteria.enhancedGenres,
-      familyFriendly: enhancedCriteria.familyFriendly
+      familyFriendly: enhancedCriteria.familyFriendly,
+      ageGroup: enhancedCriteria.ageGroup
     });
     
   } catch (error) {
-    logger.warn('⚠️ LLM analysis failed, falling back to rule-based analysis', {
+    logger.warn('⚠️ Prompt enhancement LLM failed, falling back to rule-based analysis', {
       nodeId,
       error: error instanceof Error ? error.message : String(error)
     });
