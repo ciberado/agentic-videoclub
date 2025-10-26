@@ -1,0 +1,118 @@
+import logger from '../config/logger';
+import { 
+  logNodeStart, 
+  logNodeExecution, 
+  logLlmRequest,
+  logLlmResponse,
+  logEvaluationBatch,
+  logQualityGate
+} from '../utils/logging';
+import { simulateDelay } from '../data/generators';
+import { generateFakeReasoning } from '../utils/reasoning';
+import type { MovieEvaluation } from '../types';
+import type { VideoRecommendationAgentState } from '../state/definition';
+
+export async function intelligentEvaluationNode(
+  state: typeof VideoRecommendationAgentState.State
+): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
+  const nodeId = 'intelligent_evaluation_node';
+  const startTime = logNodeStart(nodeId, 'evaluate_movie_batch_quality', {
+    batchSize: state.discoveredMoviesBatch.length,
+    userCriteria: state.enhancedUserCriteria
+  });
+
+  logger.info('🧠 Starting intelligent batch evaluation', {
+    nodeId,
+    batchSize: state.discoveredMoviesBatch.length,
+    targetGenres: state.enhancedUserCriteria?.enhancedGenres,
+    familyFriendly: state.enhancedUserCriteria?.familyFriendly,
+    evaluationThemes: state.enhancedUserCriteria?.preferredThemes
+  });
+
+  // Simulate LLM evaluation of the movie batch
+  const evaluationPrompt = `Evaluate ${state.discoveredMoviesBatch.length} movies for user preferences...`;
+  logLlmRequest('claude-3-haiku', evaluationPrompt, 1200);
+  await simulateDelay(300); // Simulate LLM evaluation time
+
+  const evaluatedMovies: MovieEvaluation[] = [];
+  let totalScore = 0;
+
+  // Evaluate each movie with fake but realistic scoring
+  for (const movie of state.discoveredMoviesBatch) {
+    // Generate realistic confidence scores based on movie characteristics
+    let confidenceScore = 0.5; // Base score
+    
+    // Boost score for preferred genres
+    if (state.enhancedUserCriteria?.enhancedGenres.some((genre: string) => movie.genre.includes(genre))) {
+      confidenceScore += 0.3;
+    }
+    
+    // Boost for family-appropriate content if needed
+    if (state.enhancedUserCriteria?.familyFriendly && ['G', 'PG', 'PG-13'].includes(movie.familyRating)) {
+      confidenceScore += 0.2;
+    }
+    
+    // Reduce score for excluded genres
+    if (state.enhancedUserCriteria?.excludeGenres.some((genre: string) => movie.genre.includes(genre))) {
+      confidenceScore -= 0.2;
+    }
+    
+    // Add some randomness but keep within realistic bounds
+    confidenceScore += (Math.random() - 0.5) * 0.3;
+    confidenceScore = Math.max(0.1, Math.min(0.95, confidenceScore));
+    
+    const evaluation: MovieEvaluation = {
+      movie,
+      confidenceScore,
+      matchReasoning: generateFakeReasoning(movie, state.enhancedUserCriteria!, confidenceScore),
+      familyAppropriate: ['G', 'PG', 'PG-13'].includes(movie.familyRating)
+    };
+    
+    evaluatedMovies.push(evaluation);
+    totalScore += confidenceScore;
+    
+    logger.debug('🎯 Movie evaluation completed', {
+      nodeId,
+      movieTitle: movie.title,
+      confidenceScore: confidenceScore.toFixed(2),
+      familyAppropriate: evaluation.familyAppropriate,
+      matchingGenres: movie.genre.filter((g: string) => state.enhancedUserCriteria?.enhancedGenres.includes(g))
+    });
+  }
+
+  const averageScore = totalScore / evaluatedMovies.length;
+  const highConfidenceThreshold = 0.7;
+  const highConfidenceMatches = evaluatedMovies.filter(e => e.confidenceScore >= highConfidenceThreshold);
+  const qualityGateThreshold = 3;
+  const qualityGatePassed = highConfidenceMatches.length >= qualityGateThreshold;
+
+  logLlmResponse('claude-3-haiku', `Batch evaluation complete with ${evaluatedMovies.length} scored movies`, 800, 300);
+
+  // Log evaluation results
+  logEvaluationBatch(evaluatedMovies.length, qualityGatePassed, highConfidenceMatches.length, averageScore * 10);
+  logQualityGate(qualityGatePassed, qualityGateThreshold, highConfidenceMatches.length, evaluatedMovies.length);
+
+  logger.info('📊 Intelligent evaluation completed', {
+    nodeId,
+    totalMoviesEvaluated: evaluatedMovies.length,
+    averageConfidenceScore: averageScore.toFixed(2),
+    highConfidenceMatches: highConfidenceMatches.length,
+    qualityGateStatus: qualityGatePassed ? 'PASSED' : 'FAILED',
+    qualityGateThreshold: qualityGateThreshold,
+    topMovie: evaluatedMovies.sort((a, b) => b.confidenceScore - a.confidenceScore)[0]?.movie.title
+  });
+
+  logNodeExecution(nodeId, 'evaluate_movie_batch_quality', startTime, {
+    moviesEvaluated: evaluatedMovies.length,
+    averageScore: averageScore.toFixed(2),
+    highConfidenceCount: highConfidenceMatches.length,
+    qualityGatePassed,
+    evaluationQuality: 'comprehensive'
+  });
+
+  return {
+    evaluatedMoviesBatch: evaluatedMovies,
+    qualityGatePassedSuccessfully: qualityGatePassed,
+    highConfidenceMatchCount: highConfidenceMatches.length
+  };
+}
