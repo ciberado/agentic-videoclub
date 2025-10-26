@@ -8,6 +8,7 @@ import {
 import { simulateDelay } from '../data/generators';
 import type { UserCriteria } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
+import { analyzeUserPreferences } from '../services/llm';
 
 /**
  * Prompt Enhancement Node - Natural Language Processing & Context Enrichment
@@ -55,8 +56,6 @@ export async function promptEnhancementNode(
   let enhancedCriteria: UserCriteria;
   
   try {
-    // Import the LLM service dynamically to avoid compilation issues during development
-    const { analyzeUserPreferences } = await import('../services/llm');
     enhancedCriteria = await analyzeUserPreferences(state.userInput);
     
     logger.info('🤖 Real LLM analysis completed', {
