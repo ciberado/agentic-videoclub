@@ -12,6 +12,58 @@ import { generateFakeReasoning } from '../utils/reasoning';
 import type { MovieEvaluation } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
+/**
+ * Intelligent Evaluation Node - LLM-Powered Quality Assessment & Matching
+ * 
+ * PURPOSE:
+ * Performs sophisticated evaluation of movie candidates against user preferences using
+ * advanced reasoning capabilities. This node serves as the "intelligence core" that
+ * determines which movies best match user criteria through nuanced content analysis.
+ * 
+ * - Model: Claude 3.5 Sonnet (superior reasoning for complex evaluations)
+ * - Integration: AWS Bedrock with streaming responses for real-time feedback
+ * - Batch Processing: Parallel LLM calls for efficiency (with rate limiting)
+ * - Structured Output: Zod schema validation for MovieEvaluation objects
+ * 
+ * EVALUATION METHODOLOGY:
+ * - Multi-dimensional Analysis:
+ *   - Genre alignment scoring (weighted by user preferences)
+ *   - Thematic content matching (plot analysis, character development)
+ *   - Age appropriateness assessment (content ratings, mature themes)
+ *   - Quality indicators (IMDb ratings, critical reviews, awards)
+ *   - Contextual factors (release year, cultural relevance, availability)
+ * 
+ * LLM PROMPT STRATEGY:
+ * - Evaluation Prompt Template: Structured assessment with scoring rubrics
+ * - Context Window Management: Batch movies efficiently within token limits
+ * - Chain-of-Thought Reasoning: Explicit reasoning steps for transparency
+ * - Consistency Checks: Cross-validation between different evaluation aspects
+ * 
+ * CONFIDENCE SCORING:
+ * - Range: 0.0 - 1.0 with clear thresholds
+ * - High Confidence: ≥0.7 (strong match likelihood)
+ * - Medium Confidence: 0.4-0.69 (potential match with caveats)
+ * - Low Confidence: <0.4 (poor match, likely rejection)
+ * - Calibration: Regular validation against user feedback for accuracy
+ * 
+ * QUALITY GATE IMPLEMENTATION:
+ * - Threshold: Minimum 3 high-confidence matches per batch
+ * - Adaptive Thresholds: Adjust based on search attempt and available options
+ * - Fallback Logic: Lower thresholds on final search attempt
+ * - Success Metrics: Track quality gate pass rates for optimization
+ * 
+ * ADVANCED EVALUATION FEATURES:
+ * - Semantic Similarity: Compare movie themes to user preferences
+ * - Mood Analysis: Match movie emotional tone to user context
+ * - Diversity Scoring: Ensure recommendation variety within constraints
+ * - Personalization: Learn from user feedback to improve future evaluations
+ * - Explanation Generation: Detailed reasoning for each recommendation
+ * 
+ * 
+ * EDUCATIONAL VALUE:
+ * Demonstrates sophisticated AI reasoning, batch processing strategies,
+ * and the integration of multiple data sources for intelligent decision-making.
+ */
 export async function intelligentEvaluationNode(
   state: typeof VideoRecommendationAgentState.State
 ): Promise<Partial<typeof VideoRecommendationAgentState.State>> {

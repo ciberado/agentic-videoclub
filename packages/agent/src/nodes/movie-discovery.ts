@@ -10,6 +10,31 @@ import { fakeMovieDatabase } from '../data/fake-movies';
 import type { Movie } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
+/**
+ * Movie Discovery & Data Fetching Node - Recursive Data Collection & Structured Extraction
+ * 
+ * PURPOSE:
+ * Discovers and fetches comprehensive movie metadata through recursive HTTP operations.
+ * This node handles the "data acquisition" phase, transforming search criteria into
+ * structured movie objects with complete metadata for downstream evaluation.
+ * 
+ * The LLM should be able to retrieve the basic webpage with the initial list of films,
+ * identify the different items and then retrieve the detail information that will include
+ * the summary, cast, score, etc.
+ * 
+ * DATA STRUCTURING:
+ * - Normalize API responses to internal Movie interface
+ * - Genre standardization and mapping
+ * - Release year validation and formatting
+ * - Director/cast information extraction
+ * - Content rating parsing and standardization
+ * - Theme extraction from plot summaries (potential LLM assistance)
+ * 
+ * 
+ * EDUCATIONAL VALUE:
+ * Demonstrates real-world data fetching patterns, API integration strategies,
+ * and the importance of robust error handling in distributed systems.
+ */
 export async function movieDiscoveryAndDataFetchingNode(
   state: typeof VideoRecommendationAgentState.State
 ): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
