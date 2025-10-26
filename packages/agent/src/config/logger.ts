@@ -73,6 +73,17 @@ const productionFormat = winston.format.combine(
 // Determine log level from environment variable, default to DEBUG
 const logLevel = process.env.LOG_LEVEL || 'debug';
 
+// Create console transport with increased listener limit
+// Note: We reuse the same transport instance to avoid creating multiple console listeners
+// which would trigger MaxListenersExceededWarning during concurrent operations
+const consoleTransport = new winston.transports.Console({
+  stderrLevels: ['error'],
+});
+
+// Increase max listeners to handle concurrent logging operations (default is 30)
+// This prevents "MaxListenersExceededWarning" during heavy logging with LLM calls
+consoleTransport.setMaxListeners(50);
+
 // Create the logger configuration
 const logger = winston.createLogger({
   level: logLevel,
@@ -81,9 +92,7 @@ const logger = winston.createLogger({
   defaultMeta: { service: 'video-recommendation-agent' },
   transports: [
     // Console transport for all environments
-    new winston.transports.Console({
-      stderrLevels: ['error'],
-    }),
+    consoleTransport,
     
     // File transports for production
     ...(process.env.NODE_ENV === 'production' ? [
@@ -103,14 +112,14 @@ const logger = winston.createLogger({
   
   // Handle uncaught exceptions and promise rejections
   exceptionHandlers: [
-    new winston.transports.Console(),
+    consoleTransport,
     ...(process.env.NODE_ENV === 'production' ? [
       new winston.transports.File({ filename: 'logs/exceptions.log' })
     ] : []),
   ],
   
   rejectionHandlers: [
-    new winston.transports.Console(),
+    consoleTransport,
     ...(process.env.NODE_ENV === 'production' ? [
       new winston.transports.File({ filename: 'logs/rejections.log' })
     ] : []),
