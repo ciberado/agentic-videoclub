@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+import 'dotenv/config';
+
 import { StateGraph, START } from '@langchain/langgraph';
 import logger from './config/logger';
 

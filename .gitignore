@@ -30,6 +30,9 @@ packages/*/dist/
 .env.test.local
 .env.production.local
 .env*
+
+# Keep .env.example files for reference (not ignored)
+!**/.env.example
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

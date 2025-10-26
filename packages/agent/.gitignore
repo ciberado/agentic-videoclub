@@ -35,6 +35,9 @@ node_modules/
 .env.local
 .env.production
 
+# Keep .env.example for reference (not ignored)
+!.env.example
+
 # Build output
 dist/
 build/
