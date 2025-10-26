@@ -2,7 +2,9 @@
 
 ## Overview
 
-This document outlines the architectural decisions for building a video recommendation agent using LangGraph.js and TypeScript. The agent processes natural language user requests to discover, fetch, and evaluate movies through an intelligent multi-phase workflow with adaptive search capabilities.
+This document outlines the architectural decisions for building a video recommendation agent using modern LangGraph.js v1 and TypeScript. The agent demonstrates a complete 4-node workflow that processes natural language user requests through intelligent prompt enhancement, movie discovery, batch evaluation, and adaptive routing. 
+
+**Educational Focus**: This implementation uses comprehensive fake data simulation and verbose logging to provide a pedagogical example of production-ready LangGraph agent patterns without requiring external APIs or services.
 
 ## System Architecture
 
@@ -140,41 +142,76 @@ Enhanced Output: {
   - Combines reliability with intelligent content understanding
 
 ### Technology Stack
-- **LangGraph.js**: Workflow orchestration and state management
-- **TypeScript**: Type safety and better developer experience
-- **Native nodejs**: HTTP client for web scraping
-- **Cheerio**: HTML parsing for data extraction
-- **LangChain AWS**: LLM integration for content analysis, using Bedrock
+- **LangGraph.js v1**: Modern workflow orchestration with Annotation.Root() state management
+- **TypeScript**: Type safety and better developer experience  
+- **Native Node.js HTTP**: Simulated HTTP client for pedagogical web scraping examples
+- **Fake Data Simulation**: Comprehensive 10-movie database for realistic agent testing
+- **LangChain Integration**: Ready for LLM integration (currently simulated for educational purposes)
 - **Winston**: Structured logging with DEBUG level as default for comprehensive tracing
 
 ## State Management
 
-### Graph State Structure
+### Modern LangGraph v1 State Structure
 ```typescript
-interface AgentState {
-  userCriteria: UserCriteria;
-  candidateMovies: Movie[];
-  filteredMovies: Movie[];
-  searchAttempts: number;
-  qualityGatePassed: boolean;
-  selectedContent: TorrentLink[];
-}
+const VideoRecommendationAgentState = Annotation.Root({
+  // Input from user
+  userInput: Annotation<string>,
+  
+  // Enhanced criteria from prompt enhancement node
+  enhancedUserCriteria: Annotation<UserCriteria | null>,
+  
+  // Movies discovered and fetched
+  discoveredMoviesBatch: Annotation<Movie[]>,
+  
+  // Evaluation results
+  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>,
+  qualityGatePassedSuccessfully: Annotation<boolean>,
+  highConfidenceMatchCount: Annotation<number>,
+  
+  // Control flow state
+  searchAttemptNumber: Annotation<number>,
+  maximumSearchAttempts: Annotation<number>,
+  finalRecommendations: Annotation<MovieEvaluation[]>,
+  
+  // Error handling
+  lastErrorMessage: Annotation<string | undefined>,
+});
 ```
 
 ### Conditional Routing Logic
-- **Success Path**: Discovery → Filtering → Acquisition → End
-- **Retry Path**: Discovery → Filtering → (Quality Gate Fails) → Flow Control → Discovery
-- **Max Iterations**: Prevent infinite loops with attempt counter
+- **Success Path**: Prompt Enhancement → Movie Discovery → Intelligent Evaluation → Batch Control → Final Recommendations
+- **Retry Path**: Intelligent Evaluation → (Quality Gate Fails) → Batch Control → Movie Discovery (with adapted criteria)
+- **Completion Path**: Batch Control → (Max Attempts Reached) → Best Available Results → End
+- **Max Iterations**: 3 search attempts with adaptive strategy modification between attempts
+
+## Pedagogical Implementation Approach
+
+### Fake Data Simulation Strategy
+The current implementation uses a comprehensive fake data approach for educational purposes:
+
+- **10-Movie Database**: Realistic sci-fi movie catalog with detailed metadata (genres, ratings, directors, themes)
+- **Simulated HTTP Requests**: Fake API calls with realistic delays and response sizes for learning HTTP patterns
+- **Mock LLM Responses**: Deterministic but realistic confidence scoring and reasoning generation
+- **Comprehensive Logging**: Every operation logged with timing, context, and structured data
+
+### Benefits of Simulation Approach
+1. **No External Dependencies**: Runs completely offline without API keys or network access
+2. **Predictable Behavior**: Consistent results for testing and learning
+3. **Realistic Patterns**: Mimics real-world API interactions and LLM behavior
+4. **Educational Focus**: Clear visibility into all agent decision-making processes
 
 ## Educational Benefits
 
 This architecture demonstrates:
 
-1. **Complex Workflow Orchestration**: Multi-step processes with conditional logic
-2. **Hybrid AI Systems**: Combining rule-based and LLM-powered components
-3. **Error Handling**: Graceful degradation and retry mechanisms
-4. **State Management**: Persistent state across async operations
-5. **Modular Design**: Clear separation of concerns between nodes
+1. **Modern LangGraph v1 Patterns**: Uses latest Annotation.Root() state management
+2. **Complex Workflow Orchestration**: Multi-step processes with conditional routing logic
+3. **Hybrid AI Systems**: Combining simulated LLM analysis with deterministic processing
+4. **Adaptive Search Strategy**: Quality gate evaluation with intelligent retry mechanisms
+5. **Error Handling**: Graceful degradation and max attempt limits
+6. **State Management**: Persistent state across async operations using modern patterns
+7. **Modular Design**: Clear separation of concerns between specialized nodes
+8. **Comprehensive Logging**: Production-ready Winston logging with structured tracing
 
 ## Future Enhancements
 
@@ -192,12 +229,22 @@ This architecture demonstrates:
 
 ## Implementation Notes
 
-- All HTTP operations include retry logic and rate limiting
-- LLM calls are cached to reduce API costs
-- Error boundaries prevent single failures from crashing the entire workflow
-- **Winston Logging**: Comprehensive structured logging with DEBUG level default
-  - Node-level execution tracking with timing metrics
-  - HTTP request/response logging for data fetching operations
-  - LLM interaction logging with token usage and response times
-  - Quality gate evaluation results and decision reasoning
-  - Search strategy adaptation tracking for iterative improvements
+### LangGraph v1 Modernization
+- **State Definition**: Uses modern `Annotation.Root()` pattern instead of deprecated channels
+- **Type Safety**: Improved TypeScript integration with `typeof VideoRecommendationAgentState.State`
+- **Constructor**: Modern `new StateGraph(VideoRecommendationAgentState)` syntax
+- **Future-Proof**: Compatible with latest LangGraph.js ecosystem updates
+
+### Simulation Architecture
+- **Fake HTTP Operations**: Realistic delays and response patterns for learning
+- **Mock LLM Calls**: Deterministic scoring with educational transparency
+- **Quality Gate Logic**: Real adaptive search strategy with simulated evaluation
+- **Error Boundaries**: Prevent single failures from crashing the entire workflow
+
+### **Winston Logging**: Comprehensive structured logging with DEBUG level default
+- Node-level execution tracking with timing metrics
+- HTTP request/response logging for simulated data fetching operations  
+- LLM interaction logging with simulated token usage and response times
+- Quality gate evaluation results and decision reasoning
+- Search strategy adaptation tracking for iterative improvements
+- Context-aware child loggers for different system components
