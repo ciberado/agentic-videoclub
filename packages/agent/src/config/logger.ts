@@ -1,4 +1,6 @@
 import * as winston from 'winston';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // Define log levels with priorities
 const logLevels = {
@@ -73,6 +75,16 @@ const productionFormat = winston.format.combine(
 // Determine log level from environment variable, default to DEBUG
 const logLevel = process.env.LOG_LEVEL || 'debug';
 
+// Create logs directory if it doesn't exist
+const logsDir = path.resolve(__dirname, '../../logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// Generate unique filename for this execution
+const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
+const executionLogFile = path.join(logsDir, `execution_${timestamp}.log`);
+
 // Create console transport with increased listener limit
 // Note: We reuse the same transport instance to avoid creating multiple console listeners
 // which would trigger MaxListenersExceededWarning during concurrent operations
@@ -84,6 +96,17 @@ const consoleTransport = new winston.transports.Console({
 // This prevents "MaxListenersExceededWarning" during heavy logging with LLM calls
 consoleTransport.setMaxListeners(50);
 
+// Create file transport for this execution with clean JSON format
+const fileTransport = new winston.transports.File({
+  filename: executionLogFile,
+  format: winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
+    winston.format.errors({ stack: true }),
+    winston.format.uncolorize(), // Remove ANSI color codes for file output
+    winston.format.json()
+  ),
+});
+
 // Create the logger configuration
 const logger = winston.createLogger({
   level: logLevel,
@@ -94,16 +117,19 @@ const logger = winston.createLogger({
     // Console transport for all environments
     consoleTransport,
     
-    // File transports for production
+    // File transport for this execution - logs all levels
+    fileTransport,
+    
+    // Additional file transports for production
     ...(process.env.NODE_ENV === 'production' ? [
       new winston.transports.File({
-        filename: 'logs/error.log',
+        filename: path.join(logsDir, 'error.log'),
         level: 'error',
         maxsize: 5242880, // 5MB
         maxFiles: 5,
       }),
       new winston.transports.File({
-        filename: 'logs/combined.log',
+        filename: path.join(logsDir, 'combined.log'),
         maxsize: 5242880, // 5MB
         maxFiles: 5,
       }),
@@ -114,16 +140,23 @@ const logger = winston.createLogger({
   exceptionHandlers: [
     consoleTransport,
     ...(process.env.NODE_ENV === 'production' ? [
-      new winston.transports.File({ filename: 'logs/exceptions.log' })
+      new winston.transports.File({ filename: path.join(logsDir, 'exceptions.log') })
     ] : []),
   ],
   
   rejectionHandlers: [
     consoleTransport,
     ...(process.env.NODE_ENV === 'production' ? [
-      new winston.transports.File({ filename: 'logs/rejections.log' })
+      new winston.transports.File({ filename: path.join(logsDir, 'rejections.log') })
     ] : []),
   ],
+});
+
+// Log initialization message with file location
+logger.info('Logger initialized', { 
+  logFile: executionLogFile,
+  logLevel,
+  nodeEnv: process.env.NODE_ENV || 'development'
 });
 
 // Create specialized loggers for different components
