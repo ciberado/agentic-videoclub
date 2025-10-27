@@ -28,7 +28,7 @@ const UserCriteriaSchema = z.object({
  * Create Bedrock client configured for prompt enhancement
  */
 function createPromptEnhancementClient(): ChatBedrockConverse {
-  const modelId = process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-3-haiku-20240307-v1:0';
+  const modelId = process.env.FAST_BEDROCK_MODEL_ID || 'us.anthropic.claude-3-haiku-20240307-v1:0';
   const region = process.env.AWS_REGION || 'us-east-1';
 
   logger.debug('🧠 Initializing prompt enhancement Bedrock client', {

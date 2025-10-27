@@ -1,12 +1,10 @@
 import logger from '../config/logger';
 import { 
   logNodeStart, 
-  logNodeExecution, 
-  logHttpRequest, 
-  logHttpResponse
+  logNodeExecution
 } from '../utils/logging';
-import { simulateDelay, generateFakeApiUrl } from '../data/generators';
-import { fakeMovieDatabase } from '../data/fake-movies';
+import { extractPrimeVideoMovieLinks, fetchPrimeVideoMoviesBatch } from '../services/prime-video-scraper';
+import { normalizeMoviesBatch } from '../services/movie-normalization-llm';
 import type { Movie } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
@@ -51,54 +49,71 @@ export async function movieDiscoveryAndDataFetchingNode(
     targetGenres: state.enhancedUserCriteria?.enhancedGenres
   });
 
-  // Simulate HTTP requests to movie websites
-  const searchParams = state.enhancedUserCriteria?.searchTerms.join('+') || 'sci-fi';
-  const searchUrl = generateFakeApiUrl('/search', { 
-    genre: searchParams, 
-    limit: '15' 
-  });
+  // Use real Prime Video scraping or fallback to fake data
+  let selectedMovies: Movie[] = [];
   
-  logHttpRequest(searchUrl, 'GET');
-  await simulateDelay(200); // Simulate HTTP delay
-  logHttpResponse(searchUrl, 200, 200, 25600);
-
-  // Simulate recursive data fetching for movie details
-  const batchSize = 10 + Math.floor(Math.random() * 5); // 10-14 movies per batch
-  const selectedMovies: Movie[] = [];
-  
-  for (let i = 0; i < Math.min(batchSize, fakeMovieDatabase.length); i++) {
-    const movie = fakeMovieDatabase[i];
+  try {
+    // Phase 1: Extract movie links from Prime Video
+    logger.info('🌐 Attempting Prime Video movie discovery', { nodeId });
+    const movieLinks = await extractPrimeVideoMovieLinks('https://www.primevideo.com/-/es/movie');
     
-    // Simulate fetching detailed movie information
-    const detailUrl = generateFakeApiUrl(`/movie/${movie.title.toLowerCase().replace(/\s+/g, '-')}`);
-    logHttpRequest(detailUrl, 'GET');
-    await simulateDelay(50); // Simulate detail fetch delay
-    logHttpResponse(detailUrl, 200, 50, 8192);
+    if (movieLinks.length > 0) {
+      // Phase 2: Fetch detailed information for each movie
+      logger.info('🔍 Fetching Prime Video movie details', { 
+        nodeId, 
+        linksFound: movieLinks.length 
+      });
+      const movieDetails = await fetchPrimeVideoMoviesBatch(movieLinks);
+      
+      // Phase 3: Normalize data using LLM
+      logger.info('🧠 Normalizing Prime Video data with LLM', { 
+        nodeId, 
+        detailsToNormalize: movieDetails.length 
+      });
+      selectedMovies = await normalizeMoviesBatch(movieDetails);
+      
+      logger.info('✅ Prime Video scraping completed successfully', {
+        nodeId,
+        moviesExtracted: selectedMovies.length,
+        source: 'prime-video'
+      });
+      
+    } else {
+      throw new Error('No Prime Video movies found');
+    }
     
-    selectedMovies.push(movie);
-    
-    logger.debug('📄 Movie data fetched and structured', {
+  } catch (error) {
+    logger.error('❌ Prime Video scraping failed', {
       nodeId,
-      movieTitle: movie.title,
-      movieYear: movie.year,
-      genreCount: movie.genre.length,
-      progress: `${i + 1}/${batchSize}`
+      error: error instanceof Error ? error.message : String(error)
+    });
+
+    // Fail gracefully - return empty batch to trigger retry or handle upstream
+    selectedMovies = [];
+  }
+
+  if (selectedMovies.length > 0) {
+    logger.info('📦 Movie batch discovery and fetching completed', {
+      nodeId,
+      totalMoviesFound: selectedMovies.length,
+      batchSize: selectedMovies.length,
+      averageRating: (selectedMovies.reduce((sum, m) => sum + m.rating, 0) / selectedMovies.length).toFixed(1),
+      genreDistribution: [...new Set(selectedMovies.flatMap(m => m.genre))]
+    });
+  } else {
+    logger.warn('📦 Movie discovery failed - no movies found', {
+      nodeId,
+      totalMoviesFound: 0,
+      requiresRetry: true
     });
   }
 
-  logger.info('📦 Movie batch discovery and fetching completed', {
-    nodeId,
-    totalMoviesFound: selectedMovies.length,
-    batchSize: selectedMovies.length,
-    averageRating: (selectedMovies.reduce((sum, m) => sum + m.rating, 0) / selectedMovies.length).toFixed(1),
-    genreDistribution: [...new Set(selectedMovies.flatMap(m => m.genre))]
-  });
-
   logNodeExecution(nodeId, 'discover_and_fetch_movie_batch', startTime, {
     moviesDiscovered: selectedMovies.length,
-    httpRequestsMade: selectedMovies.length + 1,
-    dataStructured: true,
-    batchQuality: 'good'
+    httpRequestsMade: selectedMovies.length > 0 ? selectedMovies.length + 1 : 1,
+    dataStructured: selectedMovies.length > 0,
+    batchQuality: selectedMovies.length > 5 ? 'good' : selectedMovies.length > 0 ? 'limited' : 'failed',
+    dataSource: selectedMovies.length > 0 ? 'prime-video' : 'none'
   });
 
   return {
