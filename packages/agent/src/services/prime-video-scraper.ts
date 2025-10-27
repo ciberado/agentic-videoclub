@@ -2,6 +2,8 @@ import * as cheerio from 'cheerio';
 import logger from '../config/logger';
 import { logHttpRequest, logHttpResponse } from '../utils/logging';
 
+const SCRAPPING_LIMIT = parseInt(process.env.SCRAPPING_LIMIT || '20');
+
 /**
  * Prime Video Scraper Service
  * 
@@ -142,7 +144,7 @@ export async function extractPrimeVideoMovieLinks(baseUrl: string = 'https://www
       
       // Try alternative selectors
       $('a[href*="/movie/"], a[href*="/gp/video/"]').each((index, element) => {
-        if (movieLinks.length >= 15) return false; // Limit results
+        if (movieLinks.length >= SCRAPPING_LIMIT) return false; // Limit results
         
         const $link = $(element);
         const title = $link.text().trim() || 
@@ -164,13 +166,13 @@ export async function extractPrimeVideoMovieLinks(baseUrl: string = 'https://www
       });
     }
 
-    logger.info('📋 Prime Video movie links extracted', {
+    logger.debug('🎬 Prime Video movie links extracted successfully', {
       component: 'prime-video-scraper',
       moviesFound: movieLinks.length,
       sampleTitles: movieLinks.slice(0, 3).map(m => m.title)
     });
 
-    return movieLinks.slice(0, 15); // Limit to 15 movies for batch processing
+    return movieLinks.slice(0, 100); // Limit to 100 movies for batch processing
     
   } catch (error) {
     logger.error('❌ Failed to extract Prime Video movie links', {
@@ -219,7 +221,7 @@ export async function fetchPrimeVideoMovieDetails(movieLink: PrimeVideoMovieLink
       url: movieLink.url,
       year: year,
       description: description,
-      rawHtml: html.substring(0, 5000) // First 5KB for LLM processing
+      rawHtml: html.substring(0, 15000) // First 15KB for LLM processing
     };
 
     logger.debug('✅ Movie details extracted', {

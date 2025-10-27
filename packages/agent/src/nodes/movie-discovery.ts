@@ -5,33 +5,38 @@ import {
 } from '../utils/logging';
 import { extractPrimeVideoMovieLinks, fetchPrimeVideoMoviesBatch } from '../services/prime-video-scraper';
 import { normalizeMoviesBatch } from '../services/movie-normalization-llm';
+import { movieCache } from '../services/movie-cache';
 import type { Movie } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
- * Movie Discovery & Data Fetching Node - Recursive Data Collection & Structured Extraction
+ * Movie Discovery & Data Fetching Node - Prime Video Scraping with Intelligent Caching
  * 
  * PURPOSE:
- * Discovers and fetches comprehensive movie metadata through recursive HTTP operations.
- * This node handles the "data acquisition" phase, transforming search criteria into
- * structured movie objects with complete metadata for downstream evaluation.
+ * Scrapes Prime Video website to discover movies and fetches comprehensive metadata 
+ * through a multi-phase process with intelligent caching to optimize performance.
+ * This node handles the complete "data acquisition" pipeline from initial discovery
+ * to structured movie objects ready for downstream evaluation.
  * 
- * The LLM should be able to retrieve the basic webpage with the initial list of films,
- * identify the different items and then retrieve the detail information that will include
- * the summary, cast, score, etc.
+ * WORKFLOW:
+ * Phase 1: Extract movie links from Prime Video listings (up to 50 movies)
+ * Phase 2: Check cache for previously processed movies to avoid redundant work
+ * Phase 3: Fetch detailed metadata for uncached movies via web scraping
+ * Phase 4: Normalize raw movie data using LLM-powered batch processing
+ * Phase 5: Cache newly processed movies and combine with cached results
  * 
- * DATA STRUCTURING:
- * - Normalize API responses to internal Movie interface
- * - Genre standardization and mapping
- * - Release year validation and formatting
- * - Director/cast information extraction
- * - Content rating parsing and standardization
- * - Theme extraction from plot summaries (potential LLM assistance)
+ * DATA PROCESSING:
+ * - Web scraping with rate limiting and proper headers to avoid detection
+ * - LLM-powered normalization to standardize movie metadata format
+ * - Intelligent caching system to minimize redundant API calls and processing
+ * - Genre standardization, release year validation, and cast information extraction
+ * - Content rating parsing and theme extraction from plot summaries
  * 
- * 
- * EDUCATIONAL VALUE:
- * Demonstrates real-world data fetching patterns, API integration strategies,
- * and the importance of robust error handling in distributed systems.
+ * PERFORMANCE OPTIMIZATIONS:
+ * - Cache hit rate tracking and reporting for monitoring efficiency
+ * - Batch processing of movie details to reduce HTTP overhead
+ * - Graceful fallback handling when scraping fails
+ * - Comprehensive logging for debugging and performance analysis
  */
 export async function movieDiscoveryAndDataFetchingNode(
   state: typeof VideoRecommendationAgentState.State
@@ -49,7 +54,7 @@ export async function movieDiscoveryAndDataFetchingNode(
     targetGenres: state.enhancedUserCriteria?.enhancedGenres
   });
 
-  // Use real Prime Video scraping or fallback to fake data
+  // Use real Prime Video scraping with cache optimization
   let selectedMovies: Movie[] = [];
   
   try {
@@ -58,24 +63,72 @@ export async function movieDiscoveryAndDataFetchingNode(
     const movieLinks = await extractPrimeVideoMovieLinks('https://www.primevideo.com/-/es/movie');
     
     if (movieLinks.length > 0) {
-      // Phase 2: Fetch detailed information for each movie
-      logger.info('🔍 Fetching Prime Video movie details', { 
+      // Phase 2: Check cache for existing normalized movies
+      logger.info('�️ Checking cache for existing movies', { 
         nodeId, 
         linksFound: movieLinks.length 
       });
-      const movieDetails = await fetchPrimeVideoMoviesBatch(movieLinks);
       
-      // Phase 3: Normalize data using LLM
-      logger.info('🧠 Normalizing Prime Video data with LLM', { 
-        nodeId, 
-        detailsToNormalize: movieDetails.length 
-      });
-      selectedMovies = await normalizeMoviesBatch(movieDetails);
+      const movieUrls = movieLinks.map(link => link.url);
+      const cachedMovies = await movieCache.getMovies(movieUrls);
+      const cachedUrls = Object.keys(cachedMovies);
       
-      logger.info('✅ Prime Video scraping completed successfully', {
+      // Identify movies that need to be fetched and normalized
+      const uncachedLinks = movieLinks.filter(link => !cachedUrls.includes(link.url));
+      
+      logger.info('📊 Cache analysis completed', {
         nodeId,
-        moviesExtracted: selectedMovies.length,
-        source: 'prime-video'
+        totalMovies: movieLinks.length,
+        cachedMovies: cachedUrls.length,
+        uncachedMovies: uncachedLinks.length,
+        cacheHitRate: `${((cachedUrls.length / movieLinks.length) * 100).toFixed(1)}%`
+      });
+      
+      // Phase 3: Fetch and normalize uncached movies
+      let newlyNormalizedMovies: Movie[] = [];
+      if (uncachedLinks.length > 0) {
+        logger.info('🔍 Fetching details for uncached movies', { 
+          nodeId, 
+          uncachedCount: uncachedLinks.length 
+        });
+        
+        const movieDetails = await fetchPrimeVideoMoviesBatch(uncachedLinks);
+        
+        logger.info('🧠 Normalizing uncached movies with LLM', { 
+          nodeId, 
+          detailsToNormalize: movieDetails.length 
+        });
+        
+        newlyNormalizedMovies = await normalizeMoviesBatch(movieDetails);
+        
+        // Phase 4: Cache the newly normalized movies
+        if (newlyNormalizedMovies.length > 0) {
+          logger.info('💾 Caching newly normalized movies', {
+            nodeId,
+            moviesToCache: newlyNormalizedMovies.length
+          });
+          
+          const cacheData = newlyNormalizedMovies.map((movie, index) => ({
+            url: movieDetails[index]?.url || uncachedLinks[index]?.url,
+            movie
+          })).filter(item => item.url); // Only cache items with valid URLs
+          
+          await movieCache.setMovies(cacheData);
+        }
+      }
+      
+      // Phase 5: Combine cached and newly normalized movies
+      selectedMovies = [
+        ...Object.values(cachedMovies),
+        ...newlyNormalizedMovies
+      ];
+      
+      logger.info('✅ Prime Video discovery completed successfully', {
+        nodeId,
+        totalMovies: selectedMovies.length,
+        fromCache: Object.keys(cachedMovies).length,
+        newlyProcessed: newlyNormalizedMovies.length,
+        source: 'prime-video-with-cache'
       });
       
     } else {

@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "start": "tsc; LOG_LEVEL=silly node dist/index.js",
     "dev": "LOG_LEVEL=silly ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "setup:env": "cp .env.example .env 2>/dev/null || echo '.env file already exists'",
