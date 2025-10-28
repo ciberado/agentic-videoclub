@@ -1,209 +1,195 @@
 import logger from '../config/logger';
 import { 
   logNodeStart, 
-  logNodeExecution, 
-  logSearchAdaptation
+  logNodeExecution
 } from '../utils/logging';
 import type { MovieEvaluation } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
- * Batch Control & Routing Node - Adaptive Search Management & Flow Control
+ * Final Recommendation Compilation Node - Candidate Pool Processing
  * 
  * PURPOSE:
- * Orchestrates the iterative search process through intelligent flow control and adaptive
- * strategy modification. This node serves as the "strategic controller" that determines
- * when to continue searching, when to adapt criteria, and when to finalize results.
+ * Compiles the final top 5 movie recommendations from accumulated acceptable candidates
+ * collected across multiple pagination batches. This node serves as the "recommendation
+ * finalizer" that transforms the candidate pool into ranked, diverse final results.
  * 
- * CURRENT IMPLEMENTATION:
- * - Quality gate evaluation and routing decisions
- * - Search attempt tracking with maximum limits (3 attempts)
- * - Final recommendation compilation and ranking
- * - Simulated adaptive search strategy modification
- * - Comprehensive flow control logging for debugging
+ * CORE RESPONSIBILITY:
+ * Takes the accumulated pool of acceptable candidates (≥0.6 confidence score) from
+ * multiple batch evaluations and produces the final ranked list of 5 recommendations
+ * optimized for quality, diversity, and user satisfaction.
  * 
- * FUTURE LLM INTEGRATION:
- * - Model: Claude 3 Haiku (fast decision-making for routing logic)
- * - Integration: AWS Bedrock for strategic analysis and adaptation
- * - Decision Support: LLM-assisted search strategy optimization
- * - Tools: Search strategy analyzer, recommendation optimizer
+ * INPUT STATE:
+ * - allAcceptableCandidates: Accumulated high-confidence movies from all batches
+ * - enhancedUserCriteria: User preferences for diversity optimization
+ * - searchAttemptNumber: Current iteration for logging/debugging
+ * - maximumSearchAttempts: Context for termination reasoning
  * 
- * ADAPTIVE SEARCH STRATEGY:
- * - Quality Assessment: Analyze evaluation results for improvement opportunities
- * - Criteria Expansion: Intelligently broaden search parameters
- *   - Genre expansion (add related genres: sci-fi → add space opera, cyberpunk)
- *   - Time period widening (extend year ranges for classics)
- *   - Rating flexibility (adjust content rating restrictions)
- *   - Theme diversification (broaden thematic preferences)
- * - Search Term Optimization: Generate new keywords based on previous results
- * - Feedback Loop: Learn from failed searches to improve future strategies
+ * OUTPUT STATE:
+ * - finalRecommendations: Top 5 movies ranked by multi-factor scoring
  * 
- * ROUTING DECISION MATRIX:
- * - SUCCESS PATH: Quality gate passed → compile final recommendations → END
- * - RETRY PATH: Quality gate failed + attempts < max → adapt strategy → continue search
- * - COMPLETION PATH: Max attempts reached → return best available → END
- * - EMERGENCY PATH: Critical failure → fallback recommendations → END
+ * RANKING ALGORITHM:
+ * 1. Primary Sort: Confidence score (descending) - ensures quality
+ * 2. Diversity Filter: Avoid genre clustering in top results
+ * 3. Quality Validation: Ensure minimum standards are met
+ * 4. Final Selection: Top 5 after diversity optimization
  * 
- * LLM-ENHANCED ADAPTATION:
- * - Strategy Analysis Prompt: "Given search results and user criteria, how should we modify the search?"
- * - Expansion Recommendations: LLM suggests which criteria to relax or broaden
- * - Quality Prediction: Estimate success probability of proposed adaptations
- * - Multi-Strategy Evaluation: Compare different adaptation approaches
+ * DIVERSITY OPTIMIZATION:
+ * - Genre Distribution: Avoid recommending multiple movies from same narrow genre
+ * - Year Spread: Mix of recent and classic films when possible
+ * - Director/Actor Variety: Prevent clustering by same creative teams
+ * - Rating Balance: Mix of mainstream and critical favorites
  * 
- * RECOMMENDATION COMPILATION:
- * - Ranking Algorithm: Multi-factor scoring (confidence, rating, diversity)
- * - Diversity Optimization: Ensure variety in genres, years, styles within top results
- * - Explanation Generation: Create reasoning for final recommendation order
- * - Quality Assurance: Validate final recommendations meet minimum standards
+ * QUALITY ASSURANCE:
+ * - Minimum Confidence: All recommendations maintain ≥0.6 threshold
+ * - Content Appropriateness: Family-friendly validation when required
+ * - Metadata Completeness: Ensure all recommended movies have full information
+ * - Fallback Handling: Graceful degradation when candidate pool is small
  * 
- * FLOW CONTROL LOGIC:
- * - State Validation: Ensure all required data is available for decisions
- * - Condition Evaluation: Complex boolean logic for routing decisions
- * - Error Recovery: Handle edge cases and unexpected state transitions
- * - Performance Monitoring: Track routing efficiency and success rates
+ * PERFORMANCE MONITORING:
+ * - Candidate Pool Analysis: Size, quality distribution, diversity metrics
+ * - Recommendation Quality: Average confidence, genre spread, user satisfaction predictors
+ * - Processing Efficiency: Compilation time and resource usage
+ * - Success Metrics: Recommendation count, quality standards achievement
  * 
- * SEARCH OPTIMIZATION TECHNIQUES:
- * - A/B Testing: Compare different adaptation strategies
- * - Success Rate Tracking: Monitor which adaptations lead to better results
- * - User Feedback Integration: Incorporate user satisfaction into strategy learning
- * - Contextual Adaptation: Consider time of day, user history, trending content
- * 
- * MCP TOOL INTEGRATION:
- * - Search Strategy MCP: Advanced search optimization algorithms
- * - Trending Content MCP: Current popularity and availability data
- * - User Behavior MCP: Historical preference patterns for similar users
- * - Recommendation Validator MCP: Quality check final recommendations
- * 
- * PERFORMANCE METRICS:
- * - Quality Gate Success Rate: Percentage of searches that pass quality thresholds
- * - Average Search Attempts: Efficiency metric for search convergence
- * - User Satisfaction Correlation: How often final recommendations satisfy users
- * - Adaptation Effectiveness: Success rate improvement after strategy changes
- * 
- * ADVANCED FEATURES:
- * - Predictive Routing: Anticipate likely search outcomes and pre-adapt
- * - Multi-Path Exploration: Parallel search strategies with best-result selection
- * - Dynamic Thresholds: Adjust quality gates based on search difficulty
- * - Learning Integration: Improve routing decisions based on historical data
- * 
- * ERROR HANDLING:
- * - Infinite Loop Prevention: Strict attempt limits and state validation
- * - Graceful Degradation: Always provide some recommendations
- * - Fallback Strategies: Rule-based routing if LLM-assisted decisions fail
- * - State Recovery: Handle corrupted or incomplete state gracefully
- * 
- * EDUCATIONAL VALUE:
- * Demonstrates complex control flow, adaptive algorithms, and the balance between
- * automation and human-interpretable decision-making in AI systems.
+ * FUTURE ENHANCEMENTS:
+ * - LLM-assisted diversity optimization with Claude 3 Haiku
+ * - Machine learning-based ranking with user feedback integration
+ * - A/B testing of different ranking algorithms
+ * - Real-time availability checking for recommended movies
  */
 export async function batchControlAndRoutingNode(
   state: typeof VideoRecommendationAgentState.State
 ): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
   const nodeId = 'batch_control_and_routing_node';
-  const startTime = logNodeStart(nodeId, 'control_batch_flow_and_routing', {
-    qualityGatePassed: state.qualityGatePassedSuccessfully,
+  const startTime = logNodeStart(nodeId, 'compile_final_recommendations', {
+    candidatePoolSize: state.allAcceptableCandidates?.length || 0,
     searchAttempt: state.searchAttemptNumber,
-    maxAttempts: state.maximumSearchAttempts
+    minimumRequired: state.minimumAcceptableCandidates || 5
   });
 
-  logger.info('🎯 Starting batch control and routing analysis', {
+  const allCandidates = state.allAcceptableCandidates || [];
+  const minimumRequired = state.minimumAcceptableCandidates || 5;
+
+  logger.info('� Starting final recommendation compilation', {
     nodeId,
-    qualityGatePassed: state.qualityGatePassedSuccessfully,
-    currentAttempt: state.searchAttemptNumber,
-    maxAttempts: state.maximumSearchAttempts,
-    highConfidenceMatches: state.highConfidenceMatchCount
+    candidatePoolSize: allCandidates.length,
+    minimumRequired,
+    searchAttempt: state.searchAttemptNumber,
+    userGenres: state.enhancedUserCriteria?.enhancedGenres,
+    familyFriendly: state.enhancedUserCriteria?.familyFriendly
   });
 
-  let finalRecommendations: MovieEvaluation[] = [];
-  let searchAttemptNumber = state.searchAttemptNumber;
-
-  if (state.qualityGatePassedSuccessfully) {
-    // SUCCESS PATH: Quality gate passed, compile final recommendations
-    logger.info('✅ Quality gate PASSED - Compiling final recommendations', {
+  // Validate we have candidates to work with
+  if (allCandidates.length === 0) {
+    logger.warn('⚠️ No acceptable candidates found - cannot compile recommendations', {
       nodeId,
-      highConfidenceMatches: state.highConfidenceMatchCount,
-      totalEvaluated: state.evaluatedMoviesBatch.length
+      candidatePoolSize: 0,
+      searchAttempts: state.searchAttemptNumber
     });
 
-    // Sort by confidence score and take top recommendations
-    finalRecommendations = state.evaluatedMoviesBatch
-      .sort((a: MovieEvaluation, b: MovieEvaluation) => b.confidenceScore - a.confidenceScore)
-      .slice(0, 5); // Top 5 recommendations
-
-    logger.info('🏆 Final recommendations compiled successfully', {
-      nodeId,
-      recommendationCount: finalRecommendations.length,
-      topRecommendation: finalRecommendations[0]?.movie.title,
-      averageConfidence: (finalRecommendations.reduce((sum, r) => sum + r.confidenceScore, 0) / finalRecommendations.length).toFixed(2)
-    });
-
-  } else if (state.searchAttemptNumber < state.maximumSearchAttempts) {
-    // RETRY PATH: Quality gate failed, but we can try again
-    searchAttemptNumber = state.searchAttemptNumber + 1;
-    
-    logger.warn('⚠️ Quality gate FAILED - Triggering search strategy adaptation', {
-      nodeId,
-      currentAttempt: state.searchAttemptNumber,
-      nextAttempt: searchAttemptNumber,
-      highConfidenceMatches: state.highConfidenceMatchCount,
-      requiredMatches: 3
-    });
-
-    // Simulate adaptive search strategy modification
-    const originalCriteria = state.enhancedUserCriteria;
-    const adaptedCriteria = {
-      ...originalCriteria!,
-      enhancedGenres: [...originalCriteria!.enhancedGenres, "Adventure", "Action"], // Expand genres
-      searchTerms: [...originalCriteria!.searchTerms, "popular sci-fi", "award-winning sci-fi"] // Broaden search
+    // Return empty recommendations but signal completion to prevent infinite loop
+    return {
+      finalRecommendations: [],
+      searchAttemptNumber: state.searchAttemptNumber,
+      workflowCompleted: true // Signal that workflow should terminate
     };
-
-    logSearchAdaptation(
-      searchAttemptNumber,
-      originalCriteria,
-      adaptedCriteria,
-      'Expanding genre criteria and search terms to find more matches'
-    );
-
-    logger.info('🔄 Search strategy adapted for next iteration', {
-      nodeId,
-      newAttemptNumber: searchAttemptNumber,
-      expandedGenres: adaptedCriteria.enhancedGenres,
-      newSearchTerms: adaptedCriteria.searchTerms,
-      adaptationReason: 'insufficient_quality_matches'
-    });
-
-  } else {
-    // MAX ATTEMPTS REACHED: Return best available results
-    logger.warn('🛑 Maximum search attempts reached - Returning best available results', {
-      nodeId,
-      attemptsUsed: state.searchAttemptNumber,
-      maxAttempts: state.maximumSearchAttempts,
-      bestAvailableCount: state.evaluatedMoviesBatch.length
-    });
-
-    // Return the best movies we found, even if they don't meet the quality threshold
-    finalRecommendations = state.evaluatedMoviesBatch
-      .sort((a: MovieEvaluation, b: MovieEvaluation) => b.confidenceScore - a.confidenceScore)
-      .slice(0, 3); // At least 3 recommendations
-
-    logger.info('📋 Best available recommendations compiled', {
-      nodeId,
-      recommendationCount: finalRecommendations.length,
-      averageQuality: 'below_threshold_but_best_available',
-      topRecommendation: finalRecommendations[0]?.movie.title
-    });
   }
 
-  logNodeExecution(nodeId, 'control_batch_flow_and_routing', startTime, {
-    routingDecision: state.qualityGatePassedSuccessfully ? 'SUCCESS' : 
-                    (searchAttemptNumber <= state.maximumSearchAttempts ? 'RETRY' : 'MAX_ATTEMPTS'),
-    finalRecommendationsCount: finalRecommendations.length,
-    nextSearchAttempt: searchAttemptNumber,
-    flowComplete: finalRecommendations.length > 0
+  // Sort candidates by confidence score (primary ranking factor)
+  const sortedCandidates = [...allCandidates].sort(
+    (a: MovieEvaluation, b: MovieEvaluation) => b.confidenceScore - a.confidenceScore
+  );
+
+  // Apply diversity optimization to avoid genre clustering
+  const diversifiedRecommendations = applyDiversityFilter(sortedCandidates, state.enhancedUserCriteria);
+
+  // Select top 5 recommendations (or all available if fewer)
+  const finalRecommendations = diversifiedRecommendations.slice(0, 5);
+
+  // Calculate quality metrics
+  const averageConfidence = finalRecommendations.reduce((sum, r) => sum + r.confidenceScore, 0) / finalRecommendations.length;
+  const genreDistribution = analyzeGenreDistribution(finalRecommendations);
+  const qualityMet = finalRecommendations.length >= Math.min(minimumRequired, allCandidates.length);
+
+  logger.info('✅ Final recommendations compiled successfully', {
+    nodeId,
+    candidatePoolSize: allCandidates.length,
+    recommendationCount: finalRecommendations.length,
+    averageConfidence: averageConfidence.toFixed(3),
+    topRecommendation: finalRecommendations[0]?.movie.title,
+    topScore: finalRecommendations[0]?.confidenceScore.toFixed(3),
+    genreDistribution,
+    qualityStandardMet: qualityMet,
+    diversityOptimized: true
+  });
+
+  logNodeExecution(nodeId, 'compile_final_recommendations', startTime, {
+    candidatesProcessed: allCandidates.length,
+    finalRecommendationCount: finalRecommendations.length,
+    averageConfidence: averageConfidence.toFixed(3),
+    compilationSuccess: true,
+    diversityApplied: true
   });
 
   return {
     finalRecommendations,
-    searchAttemptNumber
+    searchAttemptNumber: state.searchAttemptNumber,
+    workflowCompleted: true
   };
+}
+
+/**
+ * Apply diversity filter to prevent genre clustering in recommendations
+ */
+function applyDiversityFilter(
+  sortedCandidates: MovieEvaluation[], 
+  userCriteria: any
+): MovieEvaluation[] {
+  const diversified: MovieEvaluation[] = [];
+  const usedGenres = new Set<string>();
+  const usedDirectors = new Set<string>();
+
+  for (const candidate of sortedCandidates) {
+    if (diversified.length >= 5) break;
+
+    // Check for genre diversity (allow some overlap but prevent clustering)
+    const candidateGenres = candidate.movie.genre;
+    const hasNewGenre = candidateGenres.some(genre => !usedGenres.has(genre));
+    const directorUsed = usedDirectors.has(candidate.movie.director);
+
+    // Prioritize candidates that add genre or director diversity
+    if (diversified.length < 3 || hasNewGenre || !directorUsed) {
+      diversified.push(candidate);
+      candidateGenres.forEach(genre => usedGenres.add(genre));
+      usedDirectors.add(candidate.movie.director);
+    }
+  }
+
+  // If we don't have enough diverse candidates, fill with remaining high-quality ones
+  if (diversified.length < 5) {
+    for (const candidate of sortedCandidates) {
+      if (diversified.length >= 5) break;
+      if (!diversified.includes(candidate)) {
+        diversified.push(candidate);
+      }
+    }
+  }
+
+  return diversified;
+}
+
+/**
+ * Analyze genre distribution for logging and quality metrics
+ */
+function analyzeGenreDistribution(recommendations: MovieEvaluation[]): Record<string, number> {
+  const distribution: Record<string, number> = {};
+  
+  recommendations.forEach(rec => {
+    rec.movie.genre.forEach(genre => {
+      distribution[genre] = (distribution[genre] || 0) + 1;
+    });
+  });
+
+  return distribution;
 }

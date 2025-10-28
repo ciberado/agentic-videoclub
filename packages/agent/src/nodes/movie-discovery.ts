@@ -106,12 +106,12 @@ export async function movieDiscoveryAndDataFetchingNode(
             cacheHitRate: `${((cachedUrls.length / movieLinks.length) * 100).toFixed(1)}%`
           });
           
-          // BATCH SIZE OPTIMIZATION: Only process enough movies to fill current batch + some buffer
-          const targetMoviesToProcess = Math.min(batchSize * 2, movieLinks.length); // Process 2x batch size as buffer
-          const targetUncachedLinks = uncachedLinks.slice(0, targetMoviesToProcess);
-          const targetCachedMovies = Object.values(cachedMovies).slice(0, targetMoviesToProcess);
+          // Use all available movies for pagination system to work properly
+          const targetMoviesToProcess = movieLinks.length; // Process all available movies
+          const targetUncachedLinks = uncachedLinks; // All uncached movies
+          const targetCachedMovies = Object.values(cachedMovies); // All cached movies
           
-          logger.info('🎯 Batch-optimized processing', {
+          logger.info('🎯 Processing all available movies for pagination', {
             nodeId,
             totalAvailable: movieLinks.length,
             targetToProcess: targetMoviesToProcess,
@@ -154,7 +154,7 @@ export async function movieDiscoveryAndDataFetchingNode(
             }
           }
           
-          // Phase 5: Combine cached and newly normalized movies (limited to target amount)
+          // Phase 5: Combine cached and newly normalized movies (all available)
           allDiscoveredMovies = [
             ...targetCachedMovies,
             ...newlyNormalizedMovies

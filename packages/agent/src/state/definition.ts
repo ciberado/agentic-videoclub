@@ -26,6 +26,7 @@ export const VideoRecommendationAgentState = Annotation.Root({
   searchAttemptNumber: Annotation<number>,
   maximumSearchAttempts: Annotation<number>,
   finalRecommendations: Annotation<MovieEvaluation[]>,
+  workflowCompleted: Annotation<boolean>,
   
   // Error handling
   lastErrorMessage: Annotation<string | undefined>,

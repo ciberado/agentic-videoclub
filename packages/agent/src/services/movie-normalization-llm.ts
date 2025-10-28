@@ -70,29 +70,58 @@ URL: ${movieDetails.url}
 Year: ${movieDetails.year || 'Unknown'}
 Description: "${movieDetails.description || 'No description'}"
 
-Raw HTML snippet (first 1000 chars):
-"${movieDetails.rawHtml?.substring(0, 10000) || 'No HTML data'}"
+Relevant HTML Content (movie-specific sections):
+"${movieDetails.rawHtml || 'No HTML data'}"
 
 Please extract and normalize this into structured movie information:
 
 1. **Title**: Clean title without year, parentheses, or extra formatting
-2. **Year**: Extract or infer release year (number between 1900-2030)
+2. **Year**: Extract or infer release year (number between 1900-2030). Look for:
+   - Years in the title or description
+   - Release date information in the HTML content
+   - Years in structured data sections
+   - Any date patterns in the HTML
 3. **Genres**: Standardized genre array using these categories:
    - Action, Adventure, Animation, Biography, Comedy, Crime, Documentary
    - Drama, Family, Fantasy, History, Horror, Music, Musical, Mystery
    - Romance, Science Fiction, Thriller, War, Western
 4. **Rating**: Estimate a rating out of 10 based on available info (use 7.0 if unknown)
-5. **Director**: Extract director name or use "Unknown Director"
-6. **Description**: Clean plot summary or description
+5. **Director**: Extract director name from HTML content or use "Unknown Director"
+6. **Description**: Clean plot summary or description from the content
 7. **Family Rating**: Estimate content rating (G, PG, PG-13, R, NR)
 8. **Themes**: Extract thematic elements like "Space exploration", "Coming of age", etc.
+
+**CRITICAL ANALYSIS INSTRUCTIONS - Prime Video Specific:**
+
+1. **JSON-LD PRIORITY**: Look for json-ld-movie-data or json-ld-raw sections first - these contain the most accurate movie information
+   - Parse JSON-LD with @type: "Movie" for title, name, URL, etc.
+   - Look for ItemList structures containing movie arrays
+   - Extract any movie objects from nested graph structures
+
+2. **Context Data**: Use page-context and store-data sections for additional metadata that might contain movie details
+
+3. **Year Extraction**: 
+   - Check year-candidates section for potential release years
+   - Cross-reference with JSON-LD data if available
+   - Choose the most reasonable year (not session IDs or random numbers)
+
+4. **Title Extraction**: 
+   - Prefer JSON-LD movie names over HTML title elements
+   - Clean titles by removing parenthetical years: "Movie (2024)" becomes "Movie"
+
+5. **Automation Elements**: Check automation-* sections for Prime Video's data-automation-id content
+
+6. **Meta Tags**: Use meta-tags section for Open Graph and Twitter Card data as fallback
+
+7. **Fallback Strategy**: If JSON-LD is missing or incomplete, extract what you can from other sections
 
 Guidelines:
 - Use standard genre names from the list above
 - Convert any ratings to 0-10 scale 
 - Keep descriptions concise but informative
 - Infer reasonable defaults for missing information
-- Ensure year is a valid number
+- Ensure year is a valid number between 1900-2030
+- Prefer information from structured data sections when available
 
 Format your response as JSON with these exact fields:
 {

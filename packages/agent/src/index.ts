@@ -56,6 +56,7 @@ async function runVideoRecommendationAgent(userInput: string) {
     searchAttemptNumber: 1,
     maximumSearchAttempts: 3,
     finalRecommendations: [],
+    workflowCompleted: false,
     lastErrorMessage: undefined
   };
 

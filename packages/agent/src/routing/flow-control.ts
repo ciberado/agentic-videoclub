@@ -52,13 +52,15 @@ export function shouldContinueSearching(state: typeof VideoRecommendationAgentSt
     minimumRequired,
     totalMoviesAvailable: allMovies.length,
     currentOffset,
-    hasMoreMovies: allMovies.length > currentOffset + batchSize
+    hasMoreMovies: currentOffset < allMovies.length
   });
 
-  // If we have final recommendations, we're done
-  if (state.finalRecommendations.length > 0) {
-    logger.info('✅ Routing to END - Final recommendations ready', {
-      recommendationCount: state.finalRecommendations.length
+  // If we have final recommendations or workflow is explicitly completed, we're done
+  if (state.finalRecommendations.length > 0 || state.workflowCompleted) {
+    logger.info('✅ Routing to END - Workflow completed', {
+      recommendationCount: state.finalRecommendations.length,
+      workflowCompleted: state.workflowCompleted,
+      reason: state.finalRecommendations.length > 0 ? 'recommendations_ready' : 'no_candidates_found'
     });
     return END;
   }
@@ -84,12 +86,12 @@ export function shouldContinueSearching(state: typeof VideoRecommendationAgentSt
   }
 
   // If we have more movies to evaluate, continue with next batch
-  if (allMovies.length > currentOffset + batchSize) {
+  if (currentOffset < allMovies.length) {
     logger.info('� Routing to movie_discovery_and_data_fetching_node - Next batch available', {
       currentOffset,
       batchSize,
       totalMovies: allMovies.length,
-      remainingMovies: allMovies.length - (currentOffset + batchSize),
+      remainingMovies: allMovies.length - currentOffset,
       acceptableCandidates: allCandidates.length,
       reason: 'next_batch_available'
     });

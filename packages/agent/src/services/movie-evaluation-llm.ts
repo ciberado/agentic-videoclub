@@ -134,7 +134,15 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     // Parse and validate the JSON response
     let parsedResponse: any;
     try {
-      parsedResponse = JSON.parse(responseText);
+      // Strip markdown code blocks if present
+      let cleanedResponse = responseText.trim();
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      parsedResponse = JSON.parse(cleanedResponse);
       
       // Validate with Zod schema
       MovieEvaluationSchema.parse(parsedResponse);
@@ -147,6 +155,11 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       });
       
       // Fallback to basic evaluation
+      logger.warn('🔄 Creating fallback evaluation', {
+        component: 'movie-evaluation-llm',
+        movieTitle: movie.title
+      });
+      
       return createFallbackEvaluation(movie, userCriteria);
     }
 

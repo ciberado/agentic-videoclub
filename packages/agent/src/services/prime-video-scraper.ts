@@ -192,6 +192,149 @@ export async function extractPrimeVideoMovieLinks(baseUrl: string = 'https://www
 }
 
 /**
+ * Extract relevant movie content from HTML for LLM processing
+ * Focus on Prime Video's actual structure based on investigation
+ */
+function extractRelevantMovieContent($: cheerio.CheerioAPI, fullHtml: string): string {
+  const relevantSections: string[] = [];
+  
+  // 1. **PRIORITY: JSON-LD Structured Data** - This is where the real movie data is!
+  const jsonLdScripts = $('script[type="application/ld+json"]');
+  jsonLdScripts.each((_, script) => {
+    const content = $(script).html();
+    if (content) {
+      try {
+        // Try to parse and filter for movie-related data
+        const jsonData = JSON.parse(content);
+        if (jsonData['@type'] === 'Movie' || 
+            jsonData['@graph'] || 
+            JSON.stringify(jsonData).includes('Movie') ||
+            JSON.stringify(jsonData).includes('ItemList')) {
+          relevantSections.push(`<section class="json-ld-movie-data">${content}</section>`);
+        }
+      } catch (e) {
+        // If parsing fails, still include if it mentions movies
+        if (content.includes('Movie') || content.includes('film') || content.includes('director')) {
+          relevantSections.push(`<section class="json-ld-raw">${content}</section>`);
+        }
+      }
+    }
+  });
+  
+  // 2. Extract contextual data that might help with movie identification
+  const contextScript = $('script#dvwebnode-context');
+  if (contextScript.length > 0) {
+    const contextContent = contextScript.html();
+    if (contextContent) {
+      relevantSections.push(`<section class="page-context">${contextContent}</section>`);
+    }
+  }
+  
+  // 3. Extract store data that might contain movie information
+  const storeScript = $('script#dv-web-store-template');
+  if (storeScript.length > 0) {
+    const storeContent = storeScript.html();
+    if (storeContent) {
+      relevantSections.push(`<section class="store-data">${storeContent}</section>`);
+    }
+  }
+  
+  // 4. Look for data-automation-id attributes (Prime Video uses these)
+  const dataAutomationElements = $('[data-automation-id]');
+  dataAutomationElements.each((_, element) => {
+    const $el = $(element);
+    const automationId = $el.attr('data-automation-id');
+    if (automationId && (
+      automationId.includes('title') || 
+      automationId.includes('synopsis') || 
+      automationId.includes('meta') ||
+      automationId.includes('detail')
+    )) {
+      const content = $el.html();
+      if (content && content.length < 2000) {
+        relevantSections.push(`<section class="automation-${automationId}">${content}</section>`);
+      }
+    }
+  });
+  
+  // 5. Look for specific Prime Video patterns
+  const titleElements = $('h1, [data-testid*="title"], [class*="title"]');
+  titleElements.each((_, element) => {
+    const content = $(element).html();
+    if (content && content.length > 0 && content.length < 500) {
+      relevantSections.push(`<section class="title-element">${content}</section>`);
+    }
+  });
+  
+  // 6. Extract any year information found in the HTML
+  const yearMatches = fullHtml.match(/(19|20)\d{2}/g);
+  if (yearMatches) {
+    const potentialYears = [...new Set(yearMatches)].filter(year => {
+      const y = parseInt(year);
+      return y >= 1900 && y <= 2030;
+    }).slice(0, 10); // Limit to avoid too many false positives
+    
+    if (potentialYears.length > 0) {
+      relevantSections.push(`<section class="year-candidates">Potential release years found: ${potentialYears.join(', ')}</section>`);
+    }
+  }
+  
+  // 7. Look for any elements containing movie detail URLs (for context)
+  const detailLinks = $('a[href*="/detail/"]');
+  if (detailLinks.length > 0) {
+    const linkInfo: string[] = [];
+    detailLinks.slice(0, 5).each((_, link) => {
+      const $link = $(link);
+      const href = $link.attr('href');
+      const text = $link.text().trim();
+      if (href && text) {
+        linkInfo.push(`${text}: ${href}`);
+      }
+    });
+    if (linkInfo.length > 0) {
+      relevantSections.push(`<section class="detail-links">${linkInfo.join(' | ')}</section>`);
+    }
+  }
+  
+  // 8. As a fallback, look for any meta tags that might contain movie info
+  const metaTags = $('meta[property], meta[name]');
+  const movieMeta: string[] = [];
+  metaTags.each((_, meta) => {
+    const $meta = $(meta);
+    const property = $meta.attr('property') || $meta.attr('name');
+    const content = $meta.attr('content');
+    if (property && content && (
+      property.includes('title') || 
+      property.includes('description') ||
+      property.includes('og:') ||
+      property.includes('twitter:')
+    )) {
+      movieMeta.push(`${property}: ${content}`);
+    }
+  });
+  if (movieMeta.length > 0) {
+    relevantSections.push(`<section class="meta-tags">${movieMeta.join(' | ')}</section>`);
+  }
+  
+  // Combine all relevant sections
+  let combinedContent = relevantSections.join('\n\n');
+  
+  // If we still have very little content, provide a fallback with clean body content
+  if (combinedContent.length < 200) {
+    // Remove scripts, styles, and navigation, then get a clean sample
+    const cleanHtml = fullHtml
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
+    
+    combinedContent = `<section class="fallback-content">${cleanHtml.substring(0, 8000)}</section>`;
+  }
+  
+  // Limit total size to prevent token overuse but allow more space for JSON-LD
+  return combinedContent.substring(0, 20000);
+}
+
+/**
  * Fetch detailed movie information from Prime Video movie page
  */
 export async function fetchPrimeVideoMovieDetails(movieLink: PrimeVideoMovieLink): Promise<PrimeVideoMovieDetails> {
@@ -220,13 +363,16 @@ export async function fetchPrimeVideoMovieDetails(movieLink: PrimeVideoMovieLink
     // Try to extract year from title or page
     const yearMatch = title.match(/\((\d{4})\)/) || html.match(/(\d{4})/);
     const year = yearMatch ? parseInt(yearMatch[1]) : undefined;
+
+    // Extract relevant HTML content for LLM processing
+    const relevantHtml = extractRelevantMovieContent($, html);
     
     const details: PrimeVideoMovieDetails = {
       title: title,
       url: movieLink.url,
       year: year,
       description: description,
-      rawHtml: html.substring(0, 15000) // First 15KB for LLM processing
+      rawHtml: relevantHtml // Focused content for LLM processing
     };
 
     logger.debug('✅ Movie details extracted', {
