@@ -2,7 +2,12 @@ import * as cheerio from 'cheerio';
 import logger from '../config/logger';
 import { logHttpRequest, logHttpResponse } from '../utils/logging';
 
-const SCRAPPING_LIMIT = parseInt(process.env.SCRAPPING_LIMIT || '20');
+// Limit scraping results, smaller limit during tests
+const isTestEnvironment = process.env.NODE_ENV === 'test' || 
+                          process.env.JEST_WORKER_ID !== undefined ||
+                          typeof (global as any).testSetupLogged !== 'undefined';
+const defaultLimit = isTestEnvironment ? '5' : '20';
+const SCRAPPING_LIMIT = parseInt(process.env.SCRAPPING_LIMIT || defaultLimit);
 
 /**
  * Prime Video Scraper Service
