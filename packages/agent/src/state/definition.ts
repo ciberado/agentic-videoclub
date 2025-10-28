@@ -9,13 +9,18 @@ export const VideoRecommendationAgentState = Annotation.Root({
   // Enhanced criteria from prompt enhancement node
   enhancedUserCriteria: Annotation<UserCriteria | null>,
   
-  // Movies discovered and fetched
-  discoveredMoviesBatch: Annotation<Movie[]>,
+  // Movie discovery and pagination state
+  allDiscoveredMovies: Annotation<Movie[]>, // All movies found so far
+  discoveredMoviesBatch: Annotation<Movie[]>, // Current batch for evaluation
+  movieBatchOffset: Annotation<number>, // Current position in all movies
+  movieBatchSize: Annotation<number>, // How many movies to send to evaluation per batch
   
   // Evaluation results
-  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>,
+  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>, // Current batch evaluations
+  allAcceptableCandidates: Annotation<MovieEvaluation[]>, // All good candidates so far
   qualityGatePassedSuccessfully: Annotation<boolean>,
   highConfidenceMatchCount: Annotation<number>,
+  minimumAcceptableCandidates: Annotation<number>, // Minimum Y candidates needed
   
   // Control flow state
   searchAttemptNumber: Annotation<number>,
