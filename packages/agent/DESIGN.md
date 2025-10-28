@@ -1,17 +1,19 @@
-# Video Recommendation Agent - Design Document (Updated)
+# Video Recommendation Agent - Design Document (Current Implementation)
 
 ## Overview
 
-This document outlines the architectural decisions for building a video recommendation agent using modern LangGraph.js v1 and TypeScript. The agent demonstrates a complete 4-node workflow that processes natural language user requests through intelligent prompt enhancement, movie discovery, batch evaluation, and adaptive routing. 
+This document outlines the architectural decisions for building a production-ready video recommendation agent using modern LangGraph.js v1 and TypeScript. The agent implements a sophisticated 4-node workflow with pagination-based processing that handles natural language user requests through intelligent prompt enhancement, web scraping-based movie discovery, LLM-powered batch evaluation, and adaptive candidate accumulation.
 
-**Educational Focus**: This implementation uses comprehensive fake data simulation and verbose logging to provide a pedagogical example of production-ready LangGraph agent patterns without requiring external APIs or services.
+**Production Focus**: This implementation features real AWS Bedrock integration, live web scraping of Prime Video, SQLite database caching, and comprehensive logging to demonstrate enterprise-grade LangGraph agent patterns with actual external service integrations.
 
 ## System Architecture
 
 ### High-Level Flow
-The agent follows a 4-node architecture with intelligent prompt enhancement and adaptive batch processing:
+The agent follows a 4-node architecture with pagination-based candidate accumulation and intelligent routing:
 
-1. **Prompt Enhancement** → 2. **Movie Discovery & Data Fetching** → 3. **Intelligent Evaluation** → 4. **Batch Control & Routing**
+1. **Prompt Enhancement** → 2. **Movie Discovery & Data Fetching** → 3. **Intelligent Evaluation** → 4. **Flow Control & Candidate Accumulation**
+
+The system processes movies in paginated batches, accumulating acceptable candidates until it reaches the minimum required recommendations (default: 5) or exhausts all available movies.
 
 ### Architecture Diagram
 
@@ -19,34 +21,39 @@ The agent follows a 4-node architecture with intelligent prompt enhancement and 
 graph TD
     A["User Input: 49yo sci-fi fan, hates cheesy stories, family movie night"] --> B[Prompt Enhancement Node]
     
-    B --> |"Enhanced Criteria: Genres, themes, family-friendly"| C[Movie Discovery & Data Fetching Node]
+    B --> |"Enhanced Criteria: Genres, themes, family-friendly"| C[Movie Discovery & Web Scraping Node]
     
-    C --> |"Batch of Movies (10-15 movies)"| D[Intelligent Evaluation Node]
+    C --> |"Batch of Movies (offset-based pagination)"| D[Intelligent Evaluation Node]
     
-    D --> |"Quality Assessment & Confidence Scores"| E[Batch Control & Routing Node]
+    D --> |"Evaluated Movies with Confidence Scores"| E[Flow Control & Routing Node]
     
-    E --> |"Quality Gate Passed (≥3 high-confidence matches)"| F[Final Recommendations]
+    E --> |"Accumulate acceptable candidates (≥0.6 confidence)"| F[Candidate Pool]
     
-    E --> |"Quality Gate Failed - Expand search criteria"| G[Adapt Search Strategy]
-    G --> |"Modified Parameters: New genres/time periods"| C
+    E --> |"Need more candidates + movies available"| G[Next Batch]
+    G --> |"Increment batch offset"| C
     
-    E --> |"Max Attempts Reached"| H[Best Available Results]
+    E --> |"Sufficient candidates (≥5) OR movies exhausted"| H[Batch Control Node]
+    
+    H --> |"Compile top 5 recommendations"| I[Final Recommendations]
+    
+    E --> |"Max attempts reached"| J[Best Available Results]
     
     style B fill:#e1f5fe
+    style C fill:#f3e5f5
     style D fill:#e8f5e8
     style E fill:#fff3e0
-    style F fill:#e8f5e8
-    style H fill:#ffebee
+    style H fill:#fff3e0
+    style I fill:#e8f5e8
     
     classDef llmNode fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef deterministic fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef webScraping fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef evaluation fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
     classDef routing fill:#fff3e0,stroke:#e65100,stroke-width:2px
     
     class B llmNode
-    class C deterministic
+    class C webScraping
     class D evaluation
-    class E routing
+    class E,H routing
 ```
 
 ### Node Design Decisions
@@ -72,82 +79,86 @@ Enhanced Output: {
 }
 ```
 
-#### 2. Movie Discovery & Data Fetching Node (`movie_discovery_fetching`)
-**Responsibility**: Recursive data collection and structured extraction
-- **Initial Discovery**: Scrapes movie listing websites using enhanced search criteria
-- **Recursive Fetching**: For each discovered movie, recursively fetches detailed information via HTTP calls
-- **Link Following**: Automatically follows movie detail links to gather comprehensive data
-- **Structured Data Generation**: Converts scraped HTML into structured movie objects with metadata
-- **Batch Processing**: Processes movies in configurable batches (default: 10-15 movies per batch)
-- **Design Choice**: Combines discovery and detailed fetching for efficiency and data completeness
+#### 2. Movie Discovery & Data Fetching Node (`movie_discovery_and_data_fetching_node`)
+**Responsibility**: Prime Video web scraping with intelligent caching and pagination
+- **Web Scraping**: Real-time scraping of Prime Video movie listings using Cheerio HTML parser
+- **Cache Integration**: SQLite database caching to avoid redundant scraping and processing
+- **Batch Processing**: Pagination-based processing with configurable batch sizes (default: 10 movies)
+- **LLM Normalization**: Claude 3 Haiku-powered metadata standardization and theme extraction
+- **Rate Limiting**: Proper headers and delays to avoid detection while respecting service resources
+- **Structured Output**: Converts raw scraped data into typed Movie objects with comprehensive metadata
+- **Design Choice**: Real web scraping combined with intelligent caching for production reliability
 
-#### 3. Intelligent Evaluation Node (`intelligent_evaluation`)
-**Responsibility**: LLM-powered quality assessment and matching
-- **Batch Analysis**: Evaluates the current batch of movies against enhanced user criteria
-- **Semantic Matching**: Uses LLM to assess thematic alignment, mood, and content appropriateness
-- **Quality Scoring**: Generates confidence scores for each movie's match quality
-- **Family Appropriateness**: Evaluates content suitability when family viewing is specified
-- **Batch Quality Gate**: Determines if current batch meets minimum quality threshold (e.g., ≥3 high-confidence matches)
-- **Design Choice**: Pure LLM approach for nuanced understanding of user preferences and content analysis
+#### 3. Intelligent Evaluation Node (`intelligent_evaluation_node`)
+**Responsibility**: Claude 3.5 Sonnet-powered movie evaluation and quality assessment
+- **Parallel Batch Evaluation**: Evaluates current movie batch against enhanced user criteria using Promise.allSettled
+- **Multi-Dimensional Analysis**: Advanced reasoning across genre alignment, theme matching, age appropriateness, quality indicators, and cultural relevance
+- **Confidence Scoring**: Generates 0.0-1.0 confidence scores with detailed reasoning explanations
+- **Family Appropriateness**: Comprehensive content suitability assessment for family viewing contexts
+- **Candidate Filtering**: Identifies acceptable candidates (≥0.6 confidence) for accumulation in candidate pool
+- **Design Choice**: Claude 3.5 Sonnet for superior reasoning capabilities in complex multi-dimensional movie analysis
 
-#### 4. Batch Control & Routing Node (`batch_control_routing`)
-**Responsibility**: Adaptive search management and flow control
-- **Quality Assessment**: Reviews evaluation results and batch quality metrics
-- **Routing Decisions**: 
-  - Success → Compile final recommendations
-  - Insufficient Quality → Trigger new batch with expanded/modified search criteria
-- **Search Strategy Adaptation**: Adjusts search parameters, genres, or time periods for next iteration
-- **Loop Management**: Prevents infinite loops with maximum attempt limits
-- **Design Choice**: Centralized adaptive logic for intelligent search refinement
+#### 4. Flow Control & Batch Control Node (`shouldContinueSearching` + `batch_control_and_routing_node`)
+**Responsibility**: Pagination management, candidate accumulation, and final recommendation compilation
+- **Candidate Accumulation**: Collects acceptable candidates (≥0.6 confidence) across multiple batches
+- **Pagination Logic**: Manages batch offsets and determines when more movies are available for processing
+- **Threshold Management**: Continues processing until minimum candidates (5) are found or movies exhausted
+- **Final Compilation**: Sorts accumulated candidates by confidence score and selects top 5 recommendations
+- **Adaptive Termination**: Balances quality requirements with available movie inventory
+- **Design Choice**: Pagination-based approach ensures comprehensive coverage while maintaining performance
 
 ## Key Architectural Decisions
 
 ### Enhanced Prompt Processing
-- **Decision**: Dedicated LLM-powered prompt enhancement as first step
+- **Decision**: Dedicated Claude 3 Haiku-powered prompt enhancement as first step
 - **Rationale**: 
-  - Transforms vague user requests into structured search criteria
-  - Improves search accuracy and relevance
-  - Handles contextual requirements (family-friendly, age-appropriate)
-  - Reduces downstream processing complexity
+  - Transforms vague user requests into structured search criteria with genre mapping and theme extraction
+  - Improves downstream search accuracy and relevance through semantic understanding
+  - Handles complex contextual requirements (family-friendly, age-appropriate content)
+  - Cost-effective model choice for fast text analysis without sacrificing quality
 
-### Recursive Data Fetching
-- **Decision**: Single node handles both discovery and detailed fetching
+### Production Web Scraping with Caching
+- **Decision**: Real-time Prime Video scraping with SQLite caching layer
 - **Rationale**:
-  - Minimizes state complexity between discovery and detail fetching
-  - Enables intelligent link following and data extraction
-  - Batch processing for efficient resource utilization
-  - Structured data generation for consistent downstream processing
+  - Live data ensures current movie availability and pricing information
+  - Intelligent caching minimizes redundant scraping and improves performance
+  - Rate limiting and proper headers maintain ethical scraping practices
+  - LLM-powered normalization ensures consistent data quality
 
-### Batch-Based Quality Evaluation
-- **Decision**: Process and evaluate movies in configurable batches
+### Pagination-Based Candidate Accumulation
+- **Decision**: Process movies in paginated batches while accumulating acceptable candidates
 - **Rationale**:
-  - Prevents overwhelming the LLM with too many movies at once
-  - Enables early termination when sufficient quality matches are found
-  - Allows for adaptive search refinement between batches
-  - Better resource management and response times
+  - Prevents overwhelming Claude 3.5 Sonnet with large batch sizes for optimal reasoning quality
+  - Enables early termination when sufficient high-quality candidates are found
+  - Better resource management and cost control for production LLM usage
+  - Maintains comprehensive coverage of available movie inventory
 
-### Adaptive Search Strategy
-- **Decision**: Centralized routing node with search strategy adaptation
+### Intelligent Threshold Management
+- **Decision**: Candidate accumulation with configurable quality thresholds
 - **Rationale**:
-  - Intelligent retry logic with modified search criteria
-  - Prevents infinite loops while maximizing search coverage
-  - Learns from previous batch results to improve next iteration
-  - Clear separation between evaluation and flow control logic
+  - Balances recommendation quality with system responsiveness
+  - Ensures sufficient variety in final recommendations through continued search
+  - Prevents infinite processing loops with clear termination conditions
+  - Adapts to movie availability and user criteria specificity
 
-### Hybrid Intelligence Approach
-- **Decision**: Strategic mix of LLM and deterministic processing
+### Production LLM Integration
+- **Decision**: AWS Bedrock with model-specific optimization (Haiku for speed, Sonnet for reasoning)
 - **Rationale**:
-  - LLMs excel at semantic understanding and contextual analysis
-  - Deterministic logic handles data fetching and structured operations
-  - Combines reliability with intelligent content understanding
+  - Enterprise-grade reliability and security for production deployments
+  - Model selection optimized for specific tasks (fast text analysis vs. complex reasoning)
+  - Comprehensive error handling and fallback strategies for service resilience
+  - Structured output validation using Zod schemas for data consistency
 
 ### Technology Stack
 - **LangGraph.js v1**: Modern workflow orchestration with Annotation.Root() state management
 - **TypeScript**: Type safety and better developer experience  
-- **Native Node.js HTTP**: Simulated HTTP client for pedagogical web scraping examples
-- **Fake Data Simulation**: Comprehensive 10-movie database for realistic agent testing
-- **LangChain Integration**: Ready for LLM integration (currently simulated for educational purposes)
+- **AWS Bedrock**: Production LLM integration via @langchain/aws ChatBedrockConverse
+  - **Claude 3 Haiku**: Fast prompt enhancement and content analysis
+  - **Claude 3.5 Sonnet**: Advanced reasoning for movie evaluation
+- **Web Scraping**: Live Prime Video scraping using Cheerio HTML parser
+- **SQLite Database**: Production movie caching with better-sqlite3
 - **Winston**: Structured logging with DEBUG level as default for comprehensive tracing
+- **Zod**: Runtime schema validation for LLM outputs and data consistency
 
 ## State Management
 
@@ -160,13 +171,18 @@ const VideoRecommendationAgentState = Annotation.Root({
   // Enhanced criteria from prompt enhancement node
   enhancedUserCriteria: Annotation<UserCriteria | null>,
   
-  // Movies discovered and fetched
-  discoveredMoviesBatch: Annotation<Movie[]>,
+  // Movie discovery and pagination state
+  allDiscoveredMovies: Annotation<Movie[]>, // All movies found so far
+  discoveredMoviesBatch: Annotation<Movie[]>, // Current batch for evaluation
+  movieBatchOffset: Annotation<number>, // Current position in all movies
+  movieBatchSize: Annotation<number>, // How many movies to send to evaluation per batch
   
-  // Evaluation results
-  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>,
+  // Evaluation results and candidate accumulation
+  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>, // Current batch evaluations
+  allAcceptableCandidates: Annotation<MovieEvaluation[]>, // All good candidates so far
   qualityGatePassedSuccessfully: Annotation<boolean>,
   highConfidenceMatchCount: Annotation<number>,
+  minimumAcceptableCandidates: Annotation<number>, // Minimum candidates needed (default: 5)
   
   // Control flow state
   searchAttemptNumber: Annotation<number>,
@@ -179,53 +195,54 @@ const VideoRecommendationAgentState = Annotation.Root({
 ```
 
 ### Conditional Routing Logic
-- **Success Path**: Prompt Enhancement → Movie Discovery → Intelligent Evaluation → Batch Control → Final Recommendations
-- **Retry Path**: Intelligent Evaluation → (Quality Gate Fails) → Batch Control → Movie Discovery (with adapted criteria)
-- **Completion Path**: Batch Control → (Max Attempts Reached) → Best Available Results → End
-- **Max Iterations**: 3 search attempts with adaptive strategy modification between attempts
+- **Primary Path**: Prompt Enhancement → Movie Discovery → Intelligent Evaluation → Flow Control (accumulate candidates)
+- **Pagination Path**: Flow Control → (Need more candidates + movies available) → Movie Discovery (next batch with offset)
+- **Completion Path**: Flow Control → (Sufficient candidates ≥5 OR movies exhausted) → Batch Control → Final Recommendations
+- **Fallback Path**: Flow Control → (Max attempts reached) → Batch Control → Best Available Results → End
+- **Candidate Threshold**: Minimum 5 acceptable candidates (≥0.6 confidence score) before finalizing recommendations
 
-## Pedagogical Implementation Approach
+## Production Implementation Approach
 
-### Fake Data Simulation Strategy
-The current implementation uses a comprehensive fake data approach for educational purposes:
+### Real-World Integration Strategy
+The current implementation uses production-grade services and APIs:
 
-- **10-Movie Database**: Realistic sci-fi movie catalog with detailed metadata (genres, ratings, directors, themes)
-- **Simulated HTTP Requests**: Fake API calls with realistic delays and response sizes for learning HTTP patterns
-- **Mock LLM Responses**: Deterministic but realistic confidence scoring and reasoning generation
-- **Comprehensive Logging**: Every operation logged with timing, context, and structured data
+- **AWS Bedrock Integration**: Live Claude 3 Haiku and 3.5 Sonnet models with proper authentication
+- **Prime Video Web Scraping**: Real-time data fetching with Cheerio HTML parsing and anti-detection measures
+- **SQLite Database**: Persistent movie caching with better-sqlite3 for production performance
+- **Comprehensive Monitoring**: Every operation logged with timing, costs, and success metrics
 
-### Benefits of Simulation Approach
-1. **No External Dependencies**: Runs completely offline without API keys or network access
-2. **Predictable Behavior**: Consistent results for testing and learning
-3. **Realistic Patterns**: Mimics real-world API interactions and LLM behavior
-4. **Educational Focus**: Clear visibility into all agent decision-making processes
+### Benefits of Production Approach
+1. **Real Data Quality**: Current movie availability, ratings, and metadata from live sources
+2. **Scalable Architecture**: Caching, pagination, and batch processing for production loads
+3. **Enterprise Reliability**: Error handling, fallback strategies, and service resilience
+4. **Cost Optimization**: Smart caching and model selection to minimize operational expenses
 
-## Educational Benefits
+## Production Benefits
 
 This architecture demonstrates:
 
-1. **Modern LangGraph v1 Patterns**: Uses latest Annotation.Root() state management
-2. **Complex Workflow Orchestration**: Multi-step processes with conditional routing logic
-3. **Hybrid AI Systems**: Combining simulated LLM analysis with deterministic processing
-4. **Adaptive Search Strategy**: Quality gate evaluation with intelligent retry mechanisms
-5. **Error Handling**: Graceful degradation and max attempt limits
-6. **State Management**: Persistent state across async operations using modern patterns
-7. **Modular Design**: Clear separation of concerns between specialized nodes
-8. **Comprehensive Logging**: Production-ready Winston logging with structured tracing
+1. **Modern LangGraph v1 Patterns**: Latest Annotation.Root() state management with pagination support
+2. **Complex Workflow Orchestration**: Multi-step processes with intelligent candidate accumulation
+3. **Production LLM Integration**: Real AWS Bedrock integration with Claude 3 Haiku and 3.5 Sonnet
+4. **Web Scraping at Scale**: Live data fetching with caching, rate limiting, and error recovery
+5. **Performance Optimization**: Pagination, caching, and batch processing for production scalability
+6. **Data Consistency**: Zod schema validation and SQLite persistence for reliable data handling
+7. **Modular Architecture**: Clear separation of concerns with specialized service layers
+8. **Enterprise Logging**: Production-ready Winston logging with structured tracing and debugging
 
 ## Future Enhancements
 
 ### Phase 2 Improvements
-- Enhanced quality gate with weighted scoring
-- Parallel processing for movie detail fetching
-- Machine learning-based user preference learning
-- Integration with legal streaming APIs
+- **Multi-Platform Scraping**: Extend beyond Prime Video to Netflix, Hulu, Disney+, etc.
+- **Parallel Batch Processing**: Concurrent evaluation of multiple movie batches for improved performance
+- **Advanced User Modeling**: Machine learning-based preference learning from user feedback and ratings
+- **Streaming Availability APIs**: Integration with JustWatch or similar services for comprehensive availability data
 
 ### Advanced Features
-- Real-time availability monitoring
-- Social recommendation features
-- Content similarity clustering
-- Personalized quality metrics
+- **Real-Time Price Monitoring**: Track subscription costs and promotional offers across platforms
+- **Social Recommendation Engine**: Incorporate ratings and reviews from trusted critics and friends
+- **Content Similarity Engine**: Vector embeddings for advanced content-based filtering and clustering
+- **Personalized Quality Metrics**: Adaptive scoring based on individual user viewing history and preferences
 
 ## Implementation Notes
 
@@ -235,16 +252,16 @@ This architecture demonstrates:
 - **Constructor**: Modern `new StateGraph(VideoRecommendationAgentState)` syntax
 - **Future-Proof**: Compatible with latest LangGraph.js ecosystem updates
 
-### Simulation Architecture
-- **Fake HTTP Operations**: Realistic delays and response patterns for learning
-- **Mock LLM Calls**: Deterministic scoring with educational transparency
-- **Quality Gate Logic**: Real adaptive search strategy with simulated evaluation
-- **Error Boundaries**: Prevent single failures from crashing the entire workflow
+### Production Architecture
+- **Real HTTP Operations**: Live web scraping with proper rate limiting and error handling
+- **Production LLM Calls**: AWS Bedrock integration with cost tracking and response validation
+- **Intelligent Caching**: SQLite database with cache hit optimization and performance metrics
+- **Error Boundaries**: Comprehensive error recovery and graceful degradation strategies
 
-### **Winston Logging**: Comprehensive structured logging with DEBUG level default
-- Node-level execution tracking with timing metrics
-- HTTP request/response logging for simulated data fetching operations  
-- LLM interaction logging with simulated token usage and response times
-- Quality gate evaluation results and decision reasoning
-- Search strategy adaptation tracking for iterative improvements
-- Context-aware child loggers for different system components
+### Production Logging with Winston
+- Node-level execution tracking with timing and performance metrics
+- HTTP request/response logging for web scraping operations with success rates
+- LLM interaction logging with token usage, costs, and response quality metrics
+- Candidate accumulation and quality gate evaluation with detailed decision reasoning
+- Cache performance monitoring and database operation tracking
+- Context-aware child loggers for different system components and services
