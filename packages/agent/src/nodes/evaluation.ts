@@ -1,68 +1,54 @@
 import logger from '../config/logger';
 import { 
   logNodeStart, 
-  logNodeExecution, 
-  logLlmRequest,
-  logLlmResponse,
+  logNodeExecution,
   logEvaluationBatch,
   logQualityGate
 } from '../utils/logging';
-import { simulateDelay } from '../data/generators';
-import { generateFakeReasoning } from '../utils/reasoning';
-import type { MovieEvaluation } from '../types';
+import { evaluateMoviesBatch } from '../services/movie-evaluation-llm';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
  * Intelligent Evaluation Node - LLM-Powered Quality Assessment & Matching
  * 
- * PURPOSE:
- * Performs sophisticated evaluation of movie candidates against user preferences using
- * advanced reasoning capabilities. This node serves as the "intelligence core" that
- * determines which movies best match user criteria through nuanced content analysis.
+ * Evaluates a batch of discovered movies against enhanced user criteria using LLM analysis
+ * (Claude 3.5 Sonnet via AWS Bedrock). Each movie receives a confidence score (0.0-1.0)
+ * indicating how well it matches user preferences.
  * 
- * - Model: Claude 3.5 Sonnet (superior reasoning for complex evaluations)
- * - Integration: AWS Bedrock with streaming responses for real-time feedback
- * - Batch Processing: Parallel LLM calls for efficiency (with rate limiting)
- * - Structured Output: Zod schema validation for MovieEvaluation objects
+ * CORE PROCESSING:
+ * 1. Takes discoveredMoviesBatch and enhancedUserCriteria from state
+ * 2. Calls evaluateMoviesBatch() service for LLM evaluation
+ * 3. Calculates average confidence score across all evaluated movies
+ * 4. Applies quality gate: requires ≥3 movies with confidence ≥0.8
+ * 5. Adds high-confidence matches to allAcceptableCandidates accumulator
+ * 6. Updates movieBatchOffset for next iteration
  * 
- * EVALUATION METHODOLOGY:
- * - Multi-dimensional Analysis:
- *   - Genre alignment scoring (weighted by user preferences)
- *   - Thematic content matching (plot analysis, character development)
- *   - Age appropriateness assessment (content ratings, mature themes)
- *   - Quality indicators (IMDb ratings, critical reviews, awards)
- *   - Contextual factors (release year, cultural relevance, availability)
+ * QUALITY GATE LOGIC:
+ * - High Confidence Threshold: ≥0.8 (hardcoded)
+ * - Quality Gate Threshold: ≥3 high-confidence matches required (hardcoded)
+ * - Gate Status: Determines if batch meets quality standards for recommendation
+ * - No adaptive thresholds or fallback logic currently implemented
  * 
- * LLM PROMPT STRATEGY:
- * - Evaluation Prompt Template: Structured assessment with scoring rubrics
- * - Context Window Management: Batch movies efficiently within token limits
- * - Chain-of-Thought Reasoning: Explicit reasoning steps for transparency
- * - Consistency Checks: Cross-validation between different evaluation aspects
+ * STATE UPDATES:
+ * - evaluatedMoviesBatch: Complete evaluation results with scores
+ * - allAcceptableCandidates: Accumulates high-confidence matches across batches
+ * - qualityGatePassedSuccessfully: Boolean indicating if batch meets standards
+ * - highConfidenceMatchCount: Count of movies scoring ≥0.8
+ * - movieBatchOffset: Updated for next batch iteration (currentOffset + batchSize)
  * 
- * CONFIDENCE SCORING:
- * - Range: 0.0 - 1.0 with clear thresholds
- * - High Confidence: ≥0.7 (strong match likelihood)
- * - Medium Confidence: 0.4-0.69 (potential match with caveats)
- * - Low Confidence: <0.4 (poor match, likely rejection)
- * - Calibration: Regular validation against user feedback for accuracy
+ * LOGGING & MONITORING:
+ * - Structured logging with node execution metrics
+ * - Evaluation batch statistics (count, scores, quality gate status)
+ * - Performance tracking with start/end times
+ * - Top-performing movie identification for debugging
  * 
- * QUALITY GATE IMPLEMENTATION:
- * - Threshold: Minimum 3 high-confidence matches per batch
- * - Adaptive Thresholds: Adjust based on search attempt and available options
- * - Fallback Logic: Lower thresholds on final search attempt
- * - Success Metrics: Track quality gate pass rates for optimization
+ * DEPENDENCIES:
+ * - evaluateMoviesBatch() service handles LLM interaction
+ * - Enhanced user criteria from prompt enhancement node
+ * - Logging utilities for structured observability
  * 
- * ADVANCED EVALUATION FEATURES:
- * - Semantic Similarity: Compare movie themes to user preferences
- * - Mood Analysis: Match movie emotional tone to user context
- * - Diversity Scoring: Ensure recommendation variety within constraints
- * - Personalization: Learn from user feedback to improve future evaluations
- * - Explanation Generation: Detailed reasoning for each recommendation
- * 
- * 
- * EDUCATIONAL VALUE:
- * Demonstrates sophisticated AI reasoning, batch processing strategies,
- * and the integration of multiple data sources for intelligent decision-making.
+ * NOTE: This is a stateful accumulation node that builds up acceptable candidates
+ * across multiple batch iterations until quality gate passes or search completes.
  */
 export async function intelligentEvaluationNode(
   state: typeof VideoRecommendationAgentState.State
@@ -81,64 +67,18 @@ export async function intelligentEvaluationNode(
     evaluationThemes: state.enhancedUserCriteria?.preferredThemes
   });
 
-  // Simulate LLM evaluation of the movie batch
-  const evaluationPrompt = `Evaluate ${state.discoveredMoviesBatch.length} movies for user preferences...`;
-  logLlmRequest('claude-3-haiku', evaluationPrompt, 1200);
-  await simulateDelay(300); // Simulate LLM evaluation time
+  // Use real LLM evaluation of the movie batch
+  const evaluatedMovies = await evaluateMoviesBatch(
+    state.discoveredMoviesBatch, 
+    state.enhancedUserCriteria!
+  );
 
-  const evaluatedMovies: MovieEvaluation[] = [];
-  let totalScore = 0;
-
-  // Evaluate each movie with fake but realistic scoring
-  for (const movie of state.discoveredMoviesBatch) {
-    // Generate realistic confidence scores based on movie characteristics
-    let confidenceScore = 0.5; // Base score
-    
-    // Boost score for preferred genres
-    if (state.enhancedUserCriteria?.enhancedGenres.some((genre: string) => movie.genre.includes(genre))) {
-      confidenceScore += 0.3;
-    }
-    
-    // Boost for family-appropriate content if needed
-    if (state.enhancedUserCriteria?.familyFriendly && ['G', 'PG', 'PG-13'].includes(movie.familyRating)) {
-      confidenceScore += 0.2;
-    }
-    
-    // Reduce score for excluded genres
-    if (state.enhancedUserCriteria?.excludeGenres.some((genre: string) => movie.genre.includes(genre))) {
-      confidenceScore -= 0.2;
-    }
-    
-    // Add some randomness but keep within realistic bounds
-    confidenceScore += (Math.random() - 0.5) * 0.3;
-    confidenceScore = Math.max(0.1, Math.min(0.95, confidenceScore));
-    
-    const evaluation: MovieEvaluation = {
-      movie,
-      confidenceScore,
-      matchReasoning: generateFakeReasoning(movie, state.enhancedUserCriteria!, confidenceScore),
-      familyAppropriate: ['G', 'PG', 'PG-13'].includes(movie.familyRating)
-    };
-    
-    evaluatedMovies.push(evaluation);
-    totalScore += confidenceScore;
-    
-    logger.debug('🎯 Movie evaluation completed', {
-      nodeId,
-      movieTitle: movie.title,
-      confidenceScore: confidenceScore.toFixed(2),
-      familyAppropriate: evaluation.familyAppropriate,
-      matchingGenres: movie.genre.filter((g: string) => state.enhancedUserCriteria?.enhancedGenres.includes(g))
-    });
-  }
-
-  const averageScore = totalScore / evaluatedMovies.length;
-  const highConfidenceThreshold = 0.7;
+  const averageScore = evaluatedMovies.length > 0 ? 
+    evaluatedMovies.reduce((sum, e) => sum + e.confidenceScore, 0) / evaluatedMovies.length : 0;
+  const highConfidenceThreshold = 0.8; // Updated threshold as requested
   const highConfidenceMatches = evaluatedMovies.filter(e => e.confidenceScore >= highConfidenceThreshold);
   const qualityGateThreshold = 3;
   const qualityGatePassed = highConfidenceMatches.length >= qualityGateThreshold;
-
-  logLlmResponse('claude-3-haiku', `Batch evaluation complete with ${evaluatedMovies.length} scored movies`, 800, 300);
 
   // Log evaluation results
   logEvaluationBatch(evaluatedMovies.length, qualityGatePassed, highConfidenceMatches.length, averageScore * 10);
@@ -151,7 +91,10 @@ export async function intelligentEvaluationNode(
     highConfidenceMatches: highConfidenceMatches.length,
     qualityGateStatus: qualityGatePassed ? 'PASSED' : 'FAILED',
     qualityGateThreshold: qualityGateThreshold,
-    topMovie: evaluatedMovies.sort((a, b) => b.confidenceScore - a.confidenceScore)[0]?.movie.title
+    highConfidenceThreshold: highConfidenceThreshold,
+    topMovie: evaluatedMovies.length > 0 ? 
+      evaluatedMovies.sort((a, b) => b.confidenceScore - a.confidenceScore)[0]?.movie.title : 'none',
+    llmModel: 'claude-3.5-sonnet'
   });
 
   logNodeExecution(nodeId, 'evaluate_movie_batch_quality', startTime, {
@@ -159,12 +102,23 @@ export async function intelligentEvaluationNode(
     averageScore: averageScore.toFixed(2),
     highConfidenceCount: highConfidenceMatches.length,
     qualityGatePassed,
-    evaluationQuality: 'comprehensive'
+    evaluationQuality: 'llm-powered'
   });
+
+  // Add high-confidence matches to all acceptable candidates
+  const allAcceptableCandidates = state.allAcceptableCandidates || [];
+  const updatedAcceptableCandidates = [...allAcceptableCandidates, ...highConfidenceMatches];
+  
+  // Update batch offset for next iteration
+  const currentOffset = state.movieBatchOffset || 0;
+  const batchSize = state.movieBatchSize || 10;
+  const nextOffset = currentOffset + batchSize;
 
   return {
     evaluatedMoviesBatch: evaluatedMovies,
+    allAcceptableCandidates: updatedAcceptableCandidates,
     qualityGatePassedSuccessfully: qualityGatePassed,
-    highConfidenceMatchCount: highConfidenceMatches.length
+    highConfidenceMatchCount: highConfidenceMatches.length,
+    movieBatchOffset: nextOffset
   };
 }
