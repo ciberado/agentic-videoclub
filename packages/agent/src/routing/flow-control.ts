@@ -37,11 +37,22 @@ import type { VideoRecommendationAgentState } from '../state/definition';
  * and the implementation of complex workflow control logic in AI agent systems.
  */
 export function shouldContinueSearching(state: typeof VideoRecommendationAgentState.State): string {
-  logger.debug('🔀 Evaluating routing decision', {
+  const allCandidates = state.allAcceptableCandidates || [];
+  const minimumRequired = state.minimumAcceptableCandidates || 5;
+  const allMovies = state.allDiscoveredMovies || [];
+  const currentOffset = state.movieBatchOffset || 0;
+  const batchSize = state.movieBatchSize || 10;
+  
+  logger.debug('🔀 Evaluating routing decision with pagination', {
     qualityGatePassed: state.qualityGatePassedSuccessfully,
     searchAttempt: state.searchAttemptNumber,
     maxAttempts: state.maximumSearchAttempts,
-    hasFinalRecommendations: state.finalRecommendations.length > 0
+    hasFinalRecommendations: state.finalRecommendations.length > 0,
+    acceptableCandidates: allCandidates.length,
+    minimumRequired,
+    totalMoviesAvailable: allMovies.length,
+    currentOffset,
+    hasMoreMovies: allMovies.length > currentOffset + batchSize
   });
 
   // If we have final recommendations, we're done
@@ -52,17 +63,45 @@ export function shouldContinueSearching(state: typeof VideoRecommendationAgentSt
     return END;
   }
 
-  // If quality gate passed OR max attempts reached, go to batch control
-  if (state.qualityGatePassedSuccessfully || state.searchAttemptNumber >= state.maximumSearchAttempts) {
-    logger.info('🎯 Routing to batch_control_and_routing_node', {
-      reason: state.qualityGatePassedSuccessfully ? 'quality_gate_passed' : 'max_attempts_reached'
+  // If we have enough acceptable candidates, go to batch control to finalize
+  if (allCandidates.length >= minimumRequired) {
+    logger.info('🎯 Routing to batch_control_and_routing_node - Enough candidates found', {
+      acceptableCandidates: allCandidates.length,
+      minimumRequired,
+      reason: 'sufficient_candidates'
     });
     return 'batch_control_and_routing_node';
   }
 
-  // Continue the search loop
-  logger.info('🔄 Routing to movie_discovery_and_data_fetching_node - Continuing search', {
-    nextAttempt: state.searchAttemptNumber + 1
+  // If max attempts reached, finalize with what we have
+  if (state.searchAttemptNumber >= state.maximumSearchAttempts) {
+    logger.info('🎯 Routing to batch_control_and_routing_node - Max attempts reached', {
+      acceptableCandidates: allCandidates.length,
+      minimumRequired,
+      reason: 'max_attempts_reached'
+    });
+    return 'batch_control_and_routing_node';
+  }
+
+  // If we have more movies to evaluate, continue with next batch
+  if (allMovies.length > currentOffset + batchSize) {
+    logger.info('� Routing to movie_discovery_and_data_fetching_node - Next batch available', {
+      currentOffset,
+      batchSize,
+      totalMovies: allMovies.length,
+      remainingMovies: allMovies.length - (currentOffset + batchSize),
+      acceptableCandidates: allCandidates.length,
+      reason: 'next_batch_available'
+    });
+    return 'movie_discovery_and_data_fetching_node';
+  }
+
+  // No more movies available, finalize with current candidates
+  logger.info('🎯 Routing to batch_control_and_routing_node - No more movies available', {
+    acceptableCandidates: allCandidates.length,
+    minimumRequired,
+    totalMoviesProcessed: allMovies.length,
+    reason: 'movies_exhausted'
   });
-  return 'movie_discovery_and_data_fetching_node';
+  return 'batch_control_and_routing_node';
 }

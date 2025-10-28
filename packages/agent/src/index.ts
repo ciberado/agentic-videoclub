@@ -44,10 +44,15 @@ async function runVideoRecommendationAgent(userInput: string) {
   const initialState: typeof VideoRecommendationAgentState.State = {
     userInput,
     enhancedUserCriteria: null,
+    allDiscoveredMovies: [],
     discoveredMoviesBatch: [],
+    movieBatchOffset: 0,
+    movieBatchSize: 10, // X movies per batch
     evaluatedMoviesBatch: [],
+    allAcceptableCandidates: [],
     qualityGatePassedSuccessfully: false,
     highConfidenceMatchCount: 0,
+    minimumAcceptableCandidates: 5, // Y minimum acceptable candidates
     searchAttemptNumber: 1,
     maximumSearchAttempts: 3,
     finalRecommendations: [],
