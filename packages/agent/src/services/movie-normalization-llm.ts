@@ -76,11 +76,13 @@ Relevant HTML Content (movie-specific sections):
 Please extract and normalize this into structured movie information:
 
 1. **Title**: Clean title without year, parentheses, or extra formatting
-2. **Year**: Extract or infer release year (number between 1900-2030). Look for:
+2. **Year**: Extract or infer release year (MUST be between 1900-2030). Look for:
    - Years in the title or description
    - Release date information in the HTML content
    - Years in structured data sections
    - Any date patterns in the HTML
+   - **IMPORTANT**: Ignore session IDs, random numbers, or any 4-digit numbers that are clearly not years
+   - If unsure, use a reasonable year like 2024 or the current year
 3. **Genres**: Standardized genre array using these categories:
    - Action, Adventure, Animation, Biography, Comedy, Crime, Documentary
    - Drama, Family, Fantasy, History, Horror, Music, Musical, Mystery
@@ -119,20 +121,26 @@ Guidelines:
 - Use standard genre names from the list above
 - Convert any ratings to 0-10 scale 
 - Keep descriptions concise but informative
-- Infer reasonable defaults for missing information
-- Ensure year is a valid number between 1900-2030
+- **IMPORTANT**: Only fill in fields if you can extract them with confidence from the data
+- **CRITICAL**: Year MUST be between 1900-2030. Do NOT use session IDs, timestamps, or random numbers as years
+- If you cannot find a valid year, use current year as default
+- For missing information, use conservative defaults:
+  - Empty arrays for genres/themes if unknown
+  - Rating of 0 if unknown
+  - Empty string for director if unknown
+  - "NR" for family rating if unknown
 - Prefer information from structured data sections when available
 
 Format your response as JSON with these exact fields:
 {
   "title": "clean movie title",
   "year": 2024,
-  "genre": ["Genre1", "Genre2"],
-  "rating": 7.5,
-  "director": "Director Name",
+  "genre": ["Genre1", "Genre2"],  // Use empty array [] if unknown
+  "rating": 7.5,                  // Use 0 if unknown
+  "director": "Director Name",     // Use empty string "" if unknown
   "description": "plot description",
-  "familyRating": "PG-13",
-  "themes": ["theme1", "theme2"]
+  "familyRating": "PG-13",        // Use "NR" if unknown
+  "themes": ["theme1", "theme2"]   // Use empty array [] if unknown
 }
 
 RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
@@ -148,35 +156,60 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     const processingTime = Date.now() - startTime;
     
     // Parse and validate the JSON response
-    let parsedResponse: Movie;
+    let parsedResponse: any;
     try {
       parsedResponse = JSON.parse(responseText);
       // Validate with Zod schema
-      MovieSchema.parse(parsedResponse);
+      const validatedResponse = MovieSchema.parse(parsedResponse);
+      
+      logLlmResponse('claude-3-haiku', `Movie normalization completed for "${movieDetails.title}"`, responseText.length, processingTime);
+
+      logger.debug('🎯 Movie normalization LLM completed', {
+        component: 'movie-normalization-llm',
+        movieTitle: validatedResponse.title,
+        processingTime: `${processingTime}ms`,
+        genres: validatedResponse.genre.length,
+        year: validatedResponse.year,
+        rating: validatedResponse.rating
+      });
+
+      return validatedResponse;
+      
     } catch (parseError) {
       logger.error('❌ Failed to parse movie normalization LLM response', {
         component: 'movie-normalization-llm',
         movieTitle: movieDetails.title,
-        responseText: responseText.substring(0, 200),
+        responseText,
         parseError: parseError instanceof Error ? parseError.message : String(parseError)
       });
+      
+      // If we have a parsed response but validation failed, try to fix it
+      if (parsedResponse) {
+        try {
+          const fixedResponse = fixCommonParsingIssues(parsedResponse, movieDetails);
+          MovieSchema.parse(fixedResponse);
+          
+          logger.info('✅ Fixed parsing issues and validated movie data', {
+            component: 'movie-normalization-llm',
+            movieTitle: movieDetails.title,
+            fixedYear: fixedResponse.year
+          });
+          
+          logLlmResponse('claude-3-haiku', `Movie normalization fixed for "${movieDetails.title}"`, responseText.length, processingTime);
+          return fixedResponse;
+          
+        } catch (fixError) {
+          logger.warn('⚠️ Could not fix parsing issues, using fallback', {
+            component: 'movie-normalization-llm',
+            movieTitle: movieDetails.title,
+            fixError: fixError instanceof Error ? fixError.message : String(fixError)
+          });
+        }
+      }
       
       // Fallback to manual extraction
       return createFallbackMovie(movieDetails);
     }
-
-    logLlmResponse('claude-3-haiku', `Movie normalization completed for "${movieDetails.title}"`, responseText.length, processingTime);
-
-    logger.debug('🎯 Movie normalization LLM completed', {
-      component: 'movie-normalization-llm',
-      movieTitle: parsedResponse.title,
-      processingTime: `${processingTime}ms`,
-      genres: parsedResponse.genre.length,
-      year: parsedResponse.year,
-      rating: parsedResponse.rating
-    });
-
-    return parsedResponse;
 
   } catch (error) {
     logger.error('❌ Movie normalization LLM request failed', {
@@ -191,20 +224,56 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
 }
 
 /**
+ * Fix common parsing issues in LLM response
+ */
+function fixCommonParsingIssues(response: any, movieDetails: PrimeVideoMovieDetails): Movie {
+  // Ensure we have a valid object
+  if (!response || typeof response !== 'object') {
+    throw new Error('Invalid response object');
+  }
+
+  // Fix year if it's out of bounds
+  let year = response.year;
+  if (typeof year !== 'number' || year < 1900 || year > 2030) {
+    // Try to extract year from movieDetails or use current year
+    year = movieDetails.year || new Date().getFullYear();
+    
+    // If still invalid, use a reasonable default
+    if (year < 1900 || year > 2030) {
+      year = 2024;
+    }
+  }
+
+  // Ensure all required fields exist with proper types, but be conservative with defaults
+  return {
+    title: String(response.title || movieDetails.title || 'Unknown Title').replace(/\(\d{4}\)/, '').trim(),
+    year: year,
+    genre: Array.isArray(response.genre) ? response.genre : [],
+    rating: typeof response.rating === 'number' && response.rating >= 0 && response.rating <= 10 
+      ? response.rating : 0,
+    director: String(response.director || ''),
+    description: String(response.description || movieDetails.description || ''),
+    familyRating: String(response.familyRating || 'NR'),
+    themes: Array.isArray(response.themes) ? response.themes : []
+  };
+}
+
+/**
  * Create fallback movie data when LLM normalization fails
+ * Focus on essential info: title, description, genres - leave rest as reasonable defaults
  */
 function createFallbackMovie(movieDetails: PrimeVideoMovieDetails): Movie {
   const title = movieDetails.title.replace(/\(\d{4}\)/, '').trim();
   
   return {
     title: title,
-    year: movieDetails.year || 2024,
-    genre: ['Drama'], // Safe default genre
-    rating: 7.0,
-    director: 'Unknown Director',
-    description: movieDetails.description || 'No description available',
-    familyRating: 'PG-13',
-    themes: ['Entertainment']
+    year: movieDetails.year || 2024, // Default recent year
+    genre: [], // Will be filled by LLM if possible
+    rating: 7.0, // Reasonable default rating
+    director: 'Unknown Director', // Clear default
+    description: movieDetails.description || '', // Use what we have
+    familyRating: 'PG-13', // Safe default
+    themes: ['Entertainment'] // Basic theme
   };
 }
 

@@ -34,6 +34,7 @@ export interface PrimeVideoMovieDetails {
   cast?: string[];
   runtime?: string;
   rawHtml?: string; // For LLM processing
+  relatedMovies?: PrimeVideoMovieLink[]; // Related movies extracted from the detail page
 }
 
 /**
@@ -120,13 +121,20 @@ export async function extractPrimeVideoMovieLinks(baseUrl: string = 'https://www
     const html = await fetchWithRetry(baseUrl);
     const $ = cheerio.load(html);
     
-    // Extract movie links using the specified selector
+    // Extract movie links using improved selectors for Prime Video cards
     const movieLinks: PrimeVideoMovieLink[] = [];
-    $('article[data-card-title] a').each((index, element) => {
-      const $link = $(element);
-      const title = $link.attr('data-card-title') || 
-                    $link.find('[data-card-title]').attr('data-card-title') ||
-                    $link.text().trim();
+    
+    // Target movie cards within carousels or sections
+    $('article[data-testid="card"], article[data-card-title]').each((index, element) => {
+      if (movieLinks.length >= SCRAPPING_LIMIT) return false;
+      
+      const $card = $(element);
+      
+      // Get title from data-card-title attribute (most reliable)
+      const title = $card.attr('data-card-title');
+      
+      // Find the detail link within the card
+      const $link = $card.find('a[href*="/detail/"]').first();
       const relativeUrl = $link.attr('href');
       
       if (title && relativeUrl) {
@@ -192,146 +200,162 @@ export async function extractPrimeVideoMovieLinks(baseUrl: string = 'https://www
 }
 
 /**
- * Extract relevant movie content from HTML for LLM processing
- * Focus on Prime Video's actual structure based on investigation
+ * Extract all text content from HTML for LLM processing
+ * Simple and robust approach - let the LLM parse what it needs
  */
 function extractRelevantMovieContent($: cheerio.CheerioAPI, fullHtml: string): string {
-  const relevantSections: string[] = [];
+  // Extract all text content from the body
+  const bodyText = $('body').text();
   
-  // 1. **PRIORITY: JSON-LD Structured Data** - This is where the real movie data is!
-  const jsonLdScripts = $('script[type="application/ld+json"]');
-  jsonLdScripts.each((_, script) => {
-    const content = $(script).html();
-    if (content) {
-      try {
-        // Try to parse and filter for movie-related data
-        const jsonData = JSON.parse(content);
-        if (jsonData['@type'] === 'Movie' || 
-            jsonData['@graph'] || 
-            JSON.stringify(jsonData).includes('Movie') ||
-            JSON.stringify(jsonData).includes('ItemList')) {
-          relevantSections.push(`<section class="json-ld-movie-data">${content}</section>`);
-        }
-      } catch (e) {
-        // If parsing fails, still include if it mentions movies
-        if (content.includes('Movie') || content.includes('film') || content.includes('director')) {
-          relevantSections.push(`<section class="json-ld-raw">${content}</section>`);
-        }
-      }
-    }
+  // Clean up excessive whitespace
+  const cleanedText = bodyText
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Limit size to prevent token overuse (about 4000 tokens max)
+  return cleanedText.substring(0, 16000);
+}
+
+/**
+ * Extract related movie links from Prime Video detail page using correct carousel selectors
+ */
+export function extractRelatedMovies(html: string): PrimeVideoMovieLink[] {
+  const $ = cheerio.load(html);
+  const relatedMovies: PrimeVideoMovieLink[] = [];
+  const MAX_RELATED_PER_PAGE = 20;
+  
+  // Debug: Check what carousel-related elements exist
+  const allSections = $('section');
+  const carouselSections = $('section[data-testid="standard-carousel"]');
+  const allDataTestIds = $('[data-testid]');
+  
+  logger.info('🔍 DEBUG: HTML structure on detail page', {
+    component: 'prime-video-scraper',
+    totalSections: allSections.length,
+    carouselSections: carouselSections.length,
+    totalElementsWithDataTestId: allDataTestIds.length
   });
   
-  // 2. Extract contextual data that might help with movie identification
-  const contextScript = $('script#dvwebnode-context');
-  if (contextScript.length > 0) {
-    const contextContent = contextScript.html();
-    if (contextContent) {
-      relevantSections.push(`<section class="page-context">${contextContent}</section>`);
-    }
-  }
-  
-  // 3. Extract store data that might contain movie information
-  const storeScript = $('script#dv-web-store-template');
-  if (storeScript.length > 0) {
-    const storeContent = storeScript.html();
-    if (storeContent) {
-      relevantSections.push(`<section class="store-data">${storeContent}</section>`);
-    }
-  }
-  
-  // 4. Look for data-automation-id attributes (Prime Video uses these)
-  const dataAutomationElements = $('[data-automation-id]');
-  dataAutomationElements.each((_, element) => {
-    const $el = $(element);
-    const automationId = $el.attr('data-automation-id');
-    if (automationId && (
-      automationId.includes('title') || 
-      automationId.includes('synopsis') || 
-      automationId.includes('meta') ||
-      automationId.includes('detail')
-    )) {
-      const content = $el.html();
-      if (content && content.length < 2000) {
-        relevantSections.push(`<section class="automation-${automationId}">${content}</section>`);
-      }
-    }
+  // Log first 10 unique data-testid values found on page
+  const uniqueTestIds = new Set();
+  allDataTestIds.each((_, el) => {
+    const testId = $(el).attr('data-testid');
+    if (testId) uniqueTestIds.add(testId);
   });
   
-  // 5. Look for specific Prime Video patterns
-  const titleElements = $('h1, [data-testid*="title"], [class*="title"]');
-  titleElements.each((_, element) => {
-    const content = $(element).html();
-    if (content && content.length > 0 && content.length < 500) {
-      relevantSections.push(`<section class="title-element">${content}</section>`);
-    }
+  logger.info('🔍 DEBUG: Found data-testid values', {
+    component: 'prime-video-scraper',
+    testIds: Array.from(uniqueTestIds).slice(0, 20)
   });
   
-  // 6. Extract any year information found in the HTML
-  const yearMatches = fullHtml.match(/(19|20)\d{2}/g);
-  if (yearMatches) {
-    const potentialYears = [...new Set(yearMatches)].filter(year => {
-      const y = parseInt(year);
-      return y >= 1900 && y <= 2030;
-    }).slice(0, 10); // Limit to avoid too many false positives
+  if (carouselSections.length === 0) {
+    logger.warn('⚠️ No standard carousel sections found, checking for alternative selectors', {
+      component: 'prime-video-scraper'
+    });
     
-    if (potentialYears.length > 0) {
-      relevantSections.push(`<section class="year-candidates">Potential release years found: ${potentialYears.join(', ')}</section>`);
-    }
+    // Try alternative selectors
+    const alternativeCarousels = $('section').filter((_, el) => {
+      const text = $(el).text().toLowerCase();
+      return text.includes('otros clientes') || text.includes('también vieron') || text.includes('customers also') || text.includes('related') || text.includes('similar');
+    });
+    
+    logger.debug('🔍 Found alternative carousel candidates', {
+      component: 'prime-video-scraper',
+      alternativeCount: alternativeCarousels.length,
+      sampleTexts: alternativeCarousels.map((_, el) => $(el).text().substring(0, 100)).get().slice(0, 3)
+    });
   }
   
-  // 7. Look for any elements containing movie detail URLs (for context)
-  const detailLinks = $('a[href*="/detail/"]');
-  if (detailLinks.length > 0) {
-    const linkInfo: string[] = [];
-    detailLinks.slice(0, 5).each((_, link) => {
-      const $link = $(link);
-      const href = $link.attr('href');
-      const text = $link.text().trim();
-      if (href && text) {
-        linkInfo.push(`${text}: ${href}`);
+  carouselSections.each((_, carouselSection) => {
+    const $carousel = $(carouselSection);
+    
+    // Check if this is the "Others also viewed" section or similar
+    const carouselTitle = $carousel.find('h2, [data-testid="carousel-title"]').text().trim().toLowerCase();
+    logger.debug('🎠 Processing carousel', {
+      component: 'prime-video-scraper',
+      title: carouselTitle
+    });
+    
+    // Look for movie cards within this carousel
+    const movieCards = $carousel.find('article[data-testid="card"]');
+    
+    movieCards.each((_, cardElement) => {
+      // Stop extraction if we've reached the limit
+      if (relatedMovies.length >= MAX_RELATED_PER_PAGE) {
+        return false;
+      }
+      
+      const $card = $(cardElement);
+      
+      // Extract movie title from data-card-title attribute
+      const title = $card.attr('data-card-title');
+      
+      // Find the link within the card
+      const $link = $card.find('a[href*="/detail/"]').first();
+      const relativeUrl = $link.attr('href');
+      
+      if (title && relativeUrl) {
+        const fullUrl = relativeUrl.startsWith('http') 
+          ? relativeUrl 
+          : `https://www.primevideo.com${relativeUrl}`;
+          
+        relatedMovies.push({
+          title: title.trim(),
+          url: fullUrl
+        });
+        
+        logger.debug('🎬 Found related movie', {
+          component: 'prime-video-scraper',
+          title: title.trim(),
+          carousel: carouselTitle
+        });
       }
     });
-    if (linkInfo.length > 0) {
-      relevantSections.push(`<section class="detail-links">${linkInfo.join(' | ')}</section>`);
-    }
-  }
-  
-  // 8. As a fallback, look for any meta tags that might contain movie info
-  const metaTags = $('meta[property], meta[name]');
-  const movieMeta: string[] = [];
-  metaTags.each((_, meta) => {
-    const $meta = $(meta);
-    const property = $meta.attr('property') || $meta.attr('name');
-    const content = $meta.attr('content');
-    if (property && content && (
-      property.includes('title') || 
-      property.includes('description') ||
-      property.includes('og:') ||
-      property.includes('twitter:')
-    )) {
-      movieMeta.push(`${property}: ${content}`);
-    }
   });
-  if (movieMeta.length > 0) {
-    relevantSections.push(`<section class="meta-tags">${movieMeta.join(' | ')}</section>`);
-  }
   
-  // Combine all relevant sections
-  let combinedContent = relevantSections.join('\n\n');
-  
-  // If we still have very little content, provide a fallback with clean body content
-  if (combinedContent.length < 200) {
-    // Remove scripts, styles, and navigation, then get a clean sample
-    const cleanHtml = fullHtml
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
+  // Fallback: If no carousel movies found, try the old method as backup
+  if (relatedMovies.length === 0) {
+    logger.warn('⚠️ No movies found in carousels, trying fallback method', {
+      component: 'prime-video-scraper'
+    });
     
-    combinedContent = `<section class="fallback-content">${cleanHtml.substring(0, 8000)}</section>`;
+    $('article[data-card-title] a').each((_, element) => {
+      if (relatedMovies.length >= MAX_RELATED_PER_PAGE) {
+        return false;
+      }
+      const $link = $(element);
+      const title = $link.attr('data-card-title') || 
+                    $link.find('[data-card-title]').attr('data-card-title') ||
+                    $link.text().trim();
+      const relativeUrl = $link.attr('href');
+      
+      if (title && relativeUrl) {
+        const fullUrl = relativeUrl.startsWith('http') 
+          ? relativeUrl 
+          : `https://www.primevideo.com${relativeUrl}`;
+          
+        relatedMovies.push({
+          title: title.trim(),
+          url: fullUrl
+        });
+      }
+    });
   }
   
-  // Limit total size to prevent token overuse but allow more space for JSON-LD
-  return combinedContent.substring(0, 20000);
+  // Remove duplicates and limit to reasonable number for recursive discovery
+  const uniqueMovies = relatedMovies
+    .filter((movie, index, self) => 
+      index === self.findIndex(m => m.url === movie.url)
+    )
+    .slice(0, MAX_RELATED_PER_PAGE);
+  
+  logger.debug('🔗 Extracted related movies from detail page', {
+    component: 'prime-video-scraper',
+    count: uniqueMovies.length,
+    movies: uniqueMovies.slice(0, 5).map(m => m.title)
+  });
+  
+  return uniqueMovies;
 }
 
 /**
@@ -356,7 +380,8 @@ export async function fetchPrimeVideoMovieDetails(movieLink: PrimeVideoMovieLink
                  $('[data-automation-id="title"]').text().trim() ||
                  movieLink.title;
     
-    const description = $('[data-automation-id="synopsis"]').text().trim() ||
+    const description = $('.dv-dp-node-synopsis').text().trim() ||
+                       $('[data-automation-id="synopsis"]').text().trim() ||
                        $('p[data-automation-id="plot-summary"]').text().trim() ||
                        $('.plot-summary').text().trim();
     
@@ -367,12 +392,16 @@ export async function fetchPrimeVideoMovieDetails(movieLink: PrimeVideoMovieLink
     // Extract relevant HTML content for LLM processing
     const relevantHtml = extractRelevantMovieContent($, html);
     
+    // Extract related movies from the full HTML content
+    const relatedMovies = extractRelatedMovies(html);
+    
     const details: PrimeVideoMovieDetails = {
       title: title,
       url: movieLink.url,
       year: year,
       description: description,
-      rawHtml: relevantHtml // Focused content for LLM processing
+      rawHtml: relevantHtml, // Focused content for LLM processing
+      relatedMovies: relatedMovies // Related movies from carousel sections
     };
 
     logger.debug('✅ Movie details extracted', {
