@@ -5,14 +5,14 @@ import { StateGraph, START } from '@langchain/langgraph';
 import logger from './config/logger';
 
 // Import from modular structure
-import { VideoRecommendationAgentState } from './state/definition';
-import { promptEnhancementNode } from './nodes/prompt-enhancement';
-import { movieDiscoveryAndDataFetchingNode } from './nodes/movie-discovery';
-import { intelligentEvaluationNode } from './nodes/evaluation';
 import { batchControlAndRoutingNode } from './nodes/batch-control';
+import { intelligentEvaluationNode } from './nodes/evaluation';
+import { movieDiscoveryAndDataFetchingNode } from './nodes/movie-discovery';
+import { promptEnhancementNode } from './nodes/prompt-enhancement';
 import { shouldContinueSearching } from './routing/flow-control';
-import { globalTokenTracker } from './utils/token-tracker';
+import { VideoRecommendationAgentState } from './state/definition';
 import type { MovieEvaluation } from './types';
+import { globalTokenTracker } from './utils/token-tracker';
 
 
 
@@ -34,7 +34,7 @@ const compiledVideoRecommendationAgent = videoRecommendationWorkflow.compile();
 
 // ===== MAIN EXECUTION =====
 
-async function runVideoRecommendationAgent(userInput: string) {
+async function runVideoRecommendationAgent(userInput: string): Promise<void> {
   // Reset token tracker at the start of each run
   globalTokenTracker.reset();
   

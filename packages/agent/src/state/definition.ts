@@ -1,4 +1,5 @@
 import { Annotation } from '@langchain/langgraph';
+
 import type { UserCriteria, MovieEvaluation, Movie, MovieLink, ProcessedMovie } from '../types';
 
 // Define the state using modern Annotation pattern

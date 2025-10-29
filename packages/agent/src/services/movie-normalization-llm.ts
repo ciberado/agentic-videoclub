@@ -1,9 +1,11 @@
 import { ChatBedrockConverse } from '@langchain/aws';
 import { z } from 'zod';
+
 import logger from '../config/logger';
+import type { Movie } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
 import { globalTokenTracker } from '../utils/token-tracker';
-import type { Movie } from '../types';
+
 import type { PrimeVideoMovieDetails } from './prime-video-scraper';
 
 /**

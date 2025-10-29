@@ -1,9 +1,10 @@
 import { ChatBedrockConverse } from '@langchain/aws';
 import { z } from 'zod';
+
 import logger from '../config/logger';
+import type { UserCriteria } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
 import { globalTokenTracker } from '../utils/token-tracker';
-import type { UserCriteria } from '../types';
 
 /**
  * Prompt Enhancement LLM Service
