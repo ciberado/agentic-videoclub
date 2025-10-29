@@ -44,24 +44,40 @@ async function runVideoRecommendationAgent(userInput: string) {
   const initialState: typeof VideoRecommendationAgentState.State = {
     userInput,
     enhancedUserCriteria: null,
-    allDiscoveredMovies: [],
+    
+    // Movie discovery - clean improved structure
+    processedMovies: [],
     discoveredMoviesBatch: [],
     movieBatchOffset: 0,
     movieBatchSize: 10, // X movies per batch
+    
+    // Movie links queue - lightweight tracking
+    movieLinksQueue: [],
+    processedUrls: new Set<string>(),
+    discoveryDepth: 0,
+    maxDiscoveryDepth: 2,
+    
+    // Evaluation results
     evaluatedMoviesBatch: [],
     allAcceptableCandidates: [],
     qualityGatePassedSuccessfully: false,
     highConfidenceMatchCount: 0,
     minimumAcceptableCandidates: 5, // Y minimum acceptable candidates
+    
+    // Control flow state
     searchAttemptNumber: 1,
     maximumSearchAttempts: 3,
     finalRecommendations: [],
     workflowCompleted: false,
+    
+    // Error handling
     lastErrorMessage: undefined
   };
 
   try {
-    const finalState = await compiledVideoRecommendationAgent.invoke(initialState);
+    const finalState = await compiledVideoRecommendationAgent.invoke(initialState, {
+      recursionLimit: 50 // Increase from default 25 to handle batch processing
+    } as any);
     
     logger.info('🎉 Video Recommendation Agent completed successfully', {
       totalSearchAttempts: finalState.searchAttemptNumber,
@@ -78,6 +94,7 @@ async function runVideoRecommendationAgent(userInput: string) {
       console.log(`   Genres: ${rec.movie.genre.join(', ')}`);
       console.log(`   Rating: ${rec.movie.rating}/10`);
       console.log(`   Confidence: ${(rec.confidenceScore * 100).toFixed(1)}%`);
+      console.log(`   Description: ${rec.movie.description || 'No description available'}`);
       console.log(`   Reasoning: ${rec.matchReasoning}`);
       console.log('');
     });
@@ -102,8 +119,13 @@ export type { VideoRecommendationAgentStateType } from './state/definition';
 if (require.main === module) {
   const exampleUserInput = "I'm a 49 years old guy that loves science fiction and hates cheesy stories. I would like to find movies to watch with my family.";
 
-  runVideoRecommendationAgent(exampleUserInput).catch(error => {
-    console.error('Agent execution failed:', error);
-    process.exit(1);
-  });
+  runVideoRecommendationAgent(exampleUserInput)
+    .then(() => {
+      logger.info('🎯 Agent execution completed successfully - exiting process');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('Agent execution failed:', error);
+      process.exit(1);
+    });
 }
