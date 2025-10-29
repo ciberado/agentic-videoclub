@@ -3,40 +3,25 @@ import {
   logNodeStart, 
   logNodeExecution
 } from '../utils/logging';
-import { extractPrimeVideoMovieLinks, fetchPrimeVideoMoviesBatch } from '../services/prime-video-scraper';
+import { 
+  getAllDiscoveredMovies,
+  addProcessedMovies,
+  getDiscoveryStats
+} from '../utils/state-helpers';
+import { extractPrimeVideoMovieLinks, fetchPrimeVideoMoviesBatch, extractRelatedMovies } from '../services/prime-video-scraper';
 import { normalizeMoviesBatch } from '../services/movie-normalization-llm';
 import { movieCache } from '../services/movie-cache';
-import type { Movie } from '../types';
+import type { Movie, MovieLink } from '../types';
 import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
- * Movie Discovery & Data Fetching Node - Prime Video Scraping with Intelligent Caching
+ * Movie Discovery & Data Fetching Node - Clean Implementation
  * 
- * PURPOSE:
- * Scrapes Prime Video website to discover movies and fetches comprehensive metadata 
- * through a multi-phase process with intelligent caching to optimize performance.
- * This node handles the complete "data acquisition" pipeline from initial discovery
- * to structured movie objects ready for downstream evaluation.
- * 
- * WORKFLOW:
- * Phase 1: Extract movie links from Prime Video listings (up to 50 movies)
- * Phase 2: Check cache for previously processed movies to avoid redundant work
- * Phase 3: Fetch detailed metadata for uncached movies via web scraping
- * Phase 4: Normalize raw movie data using LLM-powered batch processing
- * Phase 5: Cache newly processed movies and combine with cached results
- * 
- * DATA PROCESSING:
- * - Web scraping with rate limiting and proper headers to avoid detection
- * - LLM-powered normalization to standardize movie metadata format
- * - Intelligent caching system to minimize redundant API calls and processing
- * - Genre standardization, release year validation, and cast information extraction
- * - Content rating parsing and theme extraction from plot summaries
- * 
- * PERFORMANCE OPTIMIZATIONS:
- * - Cache hit rate tracking and reporting for monitoring efficiency
- * - Batch processing of movie details to reduce HTTP overhead
- * - Graceful fallback handling when scraping fails
- * - Comprehensive logging for debugging and performance analysis
+ * SIMPLIFIED APPROACH:
+ * 1. Use processedMovies for all normalized movie data
+ * 2. Use movieLinksQueue for pending movie links to process
+ * 3. Use helper functions for clean state management
+ * 4. Apply resource guardrails to prevent runaway processing
  */
 export async function movieDiscoveryAndDataFetchingNode(
   state: typeof VideoRecommendationAgentState.State
@@ -44,191 +29,237 @@ export async function movieDiscoveryAndDataFetchingNode(
   const nodeId = 'movie_discovery_and_data_fetching_node';
   const startTime = logNodeStart(nodeId, 'discover_and_fetch_movie_batch', { 
     searchAttempt: state.searchAttemptNumber,
-    searchTerms: state.enhancedUserCriteria?.searchTerms,
     batchOffset: state.movieBatchOffset || 0,
     batchSize: state.movieBatchSize || 10
   });
 
+  // Resource guardrails
+  const MAX_TOTAL_MOVIES = 200;
+  const MAX_QUEUE_SIZE = 100;
+  const MAX_EXECUTION_TIME = 5 * 60 * 1000; // 5 minutes
+  const executionStartTime = Date.now();
+
   const batchOffset = state.movieBatchOffset || 0;
   const batchSize = state.movieBatchSize || 10;
-  const allMovies = state.allDiscoveredMovies || [];
+  
+  // Get current state using helper functions
+  const currentStats = getDiscoveryStats(state);
+  const allMovies = getAllDiscoveredMovies(state);
   
   logger.info('🎬 Starting movie discovery and data fetching', {
     nodeId,
     searchAttempt: state.searchAttemptNumber,
-    searchTerms: state.enhancedUserCriteria?.searchTerms,
-    targetGenres: state.enhancedUserCriteria?.enhancedGenres,
     batchOffset,
     batchSize,
-    totalMoviesAlreadyFound: allMovies.length
+    currentStats
   });
 
-  let allDiscoveredMovies: Movie[] = allMovies;
-  let currentBatch: Movie[] = [];
-  
-  // If we have enough movies for the next batch, use existing ones
+  // Check guardrails
+  if (Date.now() - executionStartTime > MAX_EXECUTION_TIME) {
+    logger.warn('⏰ Execution time limit reached');
+    return createCurrentBatchResponse(state, allMovies, batchOffset, batchSize);
+  }
+
+  if (allMovies.length >= MAX_TOTAL_MOVIES) {
+    logger.warn('📊 Total movies limit reached', { total: allMovies.length, max: MAX_TOTAL_MOVIES });
+    return createCurrentBatchResponse(state, allMovies, batchOffset, batchSize);
+  }
+
+  // If we have enough movies for current batch, return them
   if (allMovies.length >= batchOffset + batchSize) {
-    currentBatch = allMovies.slice(batchOffset, batchOffset + batchSize);
+    const currentBatch = allMovies.slice(batchOffset, batchOffset + batchSize);
     logger.info('📦 Using existing movies for current batch', {
       nodeId,
       batchOffset,
       batchSize,
-      batchMovies: currentBatch.length,
-      totalMoviesAvailable: allMovies.length
+      totalAvailable: allMovies.length
     });
-  } else {
-    // Need to discover more movies - only do full discovery on first attempt
-    if (allMovies.length === 0) {
-      // First time - discover and process only what we need for the current batch
-      try {
-        logger.info('🌐 First-time movie discovery from Prime Video', { nodeId });
-        const movieLinks = await extractPrimeVideoMovieLinks('https://www.primevideo.com/-/es/movie');
+    
+    return {
+      discoveredMoviesBatch: currentBatch,
+      movieBatchOffset: batchOffset,
+      movieBatchSize: batchSize
+    };
+  }
+
+  // Need to discover more movies
+  let updatedProcessedMovies = state.processedMovies || [];
+  let updatedMovieLinksQueue = [...(state.movieLinksQueue || [])];
+  let updatedProcessedUrls = new Set(state.processedUrls || []);
+
+  // First time discovery - get initial movie links
+  if (allMovies.length === 0) {
+    try {
+      logger.info('🌐 Initial movie discovery from Prime Video');
+      const movieLinks = await extractPrimeVideoMovieLinks('https://www.primevideo.com/-/es/movie');
+      
+      if (movieLinks.length > 0) {
+        // Add links to queue
+        const newLinks: MovieLink[] = movieLinks.map(link => ({
+          ...link,
+          source: 'initial_discovery',
+          addedAt: new Date()
+        }));
         
-        if (movieLinks.length > 0) {
-          // Phase 2: Check cache for existing normalized movies
-          logger.info('🗂️ Checking cache for existing movies', { 
-            nodeId, 
-            linksFound: movieLinks.length 
-          });
+        updatedMovieLinksQueue = [...updatedMovieLinksQueue, ...newLinks];
+        
+        logger.info('✅ Initial discovery completed', {
+          nodeId,
+          linksFound: movieLinks.length,
+          totalQueued: updatedMovieLinksQueue.length
+        });
+      }
+    } catch (error) {
+      logger.error('❌ Initial discovery failed', {
+        nodeId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return createCurrentBatchResponse(state, [], batchOffset, batchSize);
+    }
+  }
+
+  // Process queued links if we have them
+  if (updatedMovieLinksQueue.length > 0) {
+    const linksToProcess = updatedMovieLinksQueue
+      .filter(link => !updatedProcessedUrls.has(link.url))
+      .slice(0, Math.min(batchSize * 2, 20)); // Process a reasonable batch
+
+    if (linksToProcess.length > 0) {
+      try {
+        logger.info('🔄 Processing queued movie links', {
+          nodeId,
+          linksToProcess: linksToProcess.length,
+          totalQueued: updatedMovieLinksQueue.length
+        });
+
+        // Check cache first
+        const urlsToProcess = linksToProcess.map(link => link.url);
+        const cachedMovies = await movieCache.getMovies(urlsToProcess);
+        const cachedUrls = Object.keys(cachedMovies);
+        
+        // Get uncached links
+        const uncachedLinks = linksToProcess.filter(link => !cachedUrls.includes(link.url));
+        
+        // Fetch and normalize uncached movies
+        let newMovies: Movie[] = [];
+        let processedUrls: string[] = [];
+        
+        if (uncachedLinks.length > 0) {
+          const movieDetails = await fetchPrimeVideoMoviesBatch(uncachedLinks);
+          newMovies = await normalizeMoviesBatch(movieDetails);
+          processedUrls = movieDetails.map(detail => detail.url).filter(Boolean);
           
-          const movieUrls = movieLinks.map(link => link.url);
-          const cachedMovies = await movieCache.getMovies(movieUrls);
-          const cachedUrls = Object.keys(cachedMovies);
-          
-          // Identify movies that need to be fetched and normalized
-          const uncachedLinks = movieLinks.filter(link => !cachedUrls.includes(link.url));
-          
-          logger.info('📊 Cache analysis completed', {
-            nodeId,
-            totalMovies: movieLinks.length,
-            cachedMovies: cachedUrls.length,
-            uncachedMovies: uncachedLinks.length,
-            cacheHitRate: `${((cachedUrls.length / movieLinks.length) * 100).toFixed(1)}%`
-          });
-          
-          // Use all available movies for pagination system to work properly
-          const targetMoviesToProcess = movieLinks.length; // Process all available movies
-          const targetUncachedLinks = uncachedLinks; // All uncached movies
-          const targetCachedMovies = Object.values(cachedMovies); // All cached movies
-          
-          logger.info('🎯 Processing all available movies for pagination', {
-            nodeId,
-            totalAvailable: movieLinks.length,
-            targetToProcess: targetMoviesToProcess,
-            fromCache: targetCachedMovies.length,
-            toFetch: targetUncachedLinks.length,
-            batchSize
-          });
-          
-          // Phase 3: Fetch and normalize only the target uncached movies
-          let newlyNormalizedMovies: Movie[] = [];
-          if (targetUncachedLinks.length > 0) {
-            logger.info('🔍 Fetching details for targeted uncached movies', { 
-              nodeId, 
-              uncachedCount: targetUncachedLinks.length,
-              totalUncached: uncachedLinks.length
-            });
+          // Cache new movies
+          if (newMovies.length > 0) {
+            const cacheData = newMovies.map((movie, index) => ({
+              url: processedUrls[index] || uncachedLinks[index]?.url,
+              movie
+            })).filter(item => item.url);
             
-            const movieDetails = await fetchPrimeVideoMoviesBatch(targetUncachedLinks);
-            
-            logger.info('🧠 Normalizing targeted movies with LLM', { 
-              nodeId, 
-              detailsToNormalize: movieDetails.length 
-            });
-            
-            newlyNormalizedMovies = await normalizeMoviesBatch(movieDetails);
-            
-            // Phase 4: Cache the newly normalized movies
-            if (newlyNormalizedMovies.length > 0) {
-              logger.info('💾 Caching newly normalized movies', {
-                nodeId,
-                moviesToCache: newlyNormalizedMovies.length
-              });
-              
-              const cacheData = newlyNormalizedMovies.map((movie, index) => ({
-                url: movieDetails[index]?.url || targetUncachedLinks[index]?.url,
-                movie
-              })).filter(item => item.url); // Only cache items with valid URLs
-              
-              await movieCache.setMovies(cacheData);
-            }
+            await movieCache.setMovies(cacheData);
           }
-          
-          // Phase 5: Combine cached and newly normalized movies (all available)
-          allDiscoveredMovies = [
-            ...targetCachedMovies,
-            ...newlyNormalizedMovies
-          ];
-          
-          logger.info('✅ Prime Video discovery completed successfully', {
-            nodeId,
-            totalProcessed: allDiscoveredMovies.length,
-            fromCache: targetCachedMovies.length,
-            newlyProcessed: newlyNormalizedMovies.length,
-            remainingAvailable: movieLinks.length - allDiscoveredMovies.length,
-            source: 'prime-video-with-cache-batched'
+
+          // Extract related movies for future processing
+          movieDetails.forEach(detail => {
+            if (detail.rawHtml && updatedMovieLinksQueue.length < MAX_QUEUE_SIZE) {
+              const relatedMovies = extractRelatedMovies(detail.rawHtml);
+              relatedMovies.forEach(relatedMovie => {
+                if (!updatedProcessedUrls.has(relatedMovie.url) && 
+                    updatedMovieLinksQueue.length < MAX_QUEUE_SIZE) {
+                  updatedMovieLinksQueue.push({
+                    ...relatedMovie,
+                    source: 'related_movie',
+                    addedAt: new Date()
+                  });
+                }
+              });
+            }
           });
-          
-        } else {
-          throw new Error('No Prime Video movies found');
         }
         
+        // Combine cached and new movies
+        const allNewMovies = [...Object.values(cachedMovies), ...newMovies];
+        const allProcessedUrls = [...cachedUrls, ...processedUrls];
+        
+        // Update processed movies using helper
+        updatedProcessedMovies = addProcessedMovies(
+          { ...state, processedMovies: updatedProcessedMovies }, 
+          allNewMovies, 
+          allProcessedUrls, 
+          'initial_discovery'
+        );
+        
+        // Update processed URLs
+        allProcessedUrls.forEach(url => updatedProcessedUrls.add(url));
+        
+        // Remove processed links from queue
+        const processedUrlSet = new Set(allProcessedUrls);
+        updatedMovieLinksQueue = updatedMovieLinksQueue.filter(link => !processedUrlSet.has(link.url));
+        
+        logger.info('✅ Processed movie links successfully', {
+          nodeId,
+          newMoviesAdded: allNewMovies.length,
+          totalProcessed: updatedProcessedMovies.length,
+          remainingQueued: updatedMovieLinksQueue.length
+        });
+        
       } catch (error) {
-        logger.error('❌ Prime Video scraping failed', {
+        logger.error('❌ Failed to process movie links', {
           nodeId,
           error: error instanceof Error ? error.message : String(error)
         });
-
-        // Fail gracefully - return empty batch to trigger retry or handle upstream
-        allDiscoveredMovies = [];
       }
-    } else {
-      // We've already discovered movies but don't have enough for the current batch
-      // This means we've exhausted all available movies
-      logger.info('📦 No more movies available for batching', {
-        nodeId,
-        totalMoviesFound: allMovies.length,
-        requestedOffset: batchOffset,
-        requestedSize: batchSize
-      });
     }
-    
-    // Create current batch from available movies
-    currentBatch = allDiscoveredMovies.slice(batchOffset, batchOffset + batchSize);
   }
 
-  if (currentBatch.length > 0) {
-    logger.info('📦 Movie batch prepared for evaluation', {
-      nodeId,
-      batchSize: currentBatch.length,
-      batchOffset,
-      totalMoviesAvailable: allDiscoveredMovies.length,
-      averageRating: (currentBatch.reduce((sum: number, m: Movie) => sum + m.rating, 0) / currentBatch.length).toFixed(1),
-      genreDistribution: [...new Set(currentBatch.flatMap((m: Movie) => m.genre))]
-    });
-  } else {
-    logger.warn('📦 No movies available for current batch', {
-      nodeId,
-      batchOffset,
-      batchSize,
-      totalMoviesAvailable: allDiscoveredMovies.length,
-      requiresRetry: true
-    });
-  }
+  // Create current batch from processed movies
+  const updatedAllMovies = updatedProcessedMovies.map(pm => pm.movie);
+  const currentBatch = updatedAllMovies.slice(batchOffset, batchOffset + batchSize);
+  
+  logger.info('📦 Movie batch prepared for evaluation', {
+    nodeId,
+    batchSize: currentBatch.length,
+    totalMoviesAvailable: updatedAllMovies.length,
+    queuedLinks: updatedMovieLinksQueue.length
+  });
 
   logNodeExecution(nodeId, 'discover_and_fetch_movie_batch', startTime, {
-    moviesDiscovered: allDiscoveredMovies.length,
+    moviesDiscovered: updatedAllMovies.length,
     currentBatchSize: currentBatch.length,
-    httpRequestsMade: allDiscoveredMovies.length > 0 ? allDiscoveredMovies.length + 1 : 1,
     dataStructured: currentBatch.length > 0,
-    batchQuality: currentBatch.length > 5 ? 'good' : currentBatch.length > 0 ? 'limited' : 'failed',
-    dataSource: allDiscoveredMovies.length > 0 ? 'prime-video' : 'none'
+    dataSource: 'prime-video'
   });
 
   return {
-    allDiscoveredMovies,
+    processedMovies: updatedProcessedMovies,
     discoveredMoviesBatch: currentBatch,
     movieBatchOffset: batchOffset,
-    movieBatchSize: batchSize
+    movieBatchSize: batchSize,
+    movieLinksQueue: updatedMovieLinksQueue.slice(0, MAX_QUEUE_SIZE), // Apply guardrail
+    processedUrls: updatedProcessedUrls,
+    discoveryDepth: state.discoveryDepth || 0,
+    maxDiscoveryDepth: state.maxDiscoveryDepth || 2
+  };
+}
+
+/**
+ * Helper function to create response with current batch
+ */
+function createCurrentBatchResponse(
+  state: typeof VideoRecommendationAgentState.State,
+  allMovies: Movie[],
+  batchOffset: number,
+  batchSize: number
+) {
+  const currentBatch = allMovies.slice(batchOffset, batchOffset + batchSize);
+  
+  return {
+    discoveredMoviesBatch: currentBatch,
+    movieBatchOffset: batchOffset,
+    movieBatchSize: batchSize,
+    movieLinksQueue: [], // Clear queue to stop processing
+    processedUrls: state.processedUrls || new Set<string>(),
+    discoveryDepth: state.discoveryDepth || 0,
+    maxDiscoveryDepth: state.maxDiscoveryDepth || 2
   };
 }

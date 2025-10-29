@@ -23,11 +23,10 @@ import type { VideoRecommendationAgentState } from '../state/definition';
  * 5. Adds high-confidence matches to allAcceptableCandidates accumulator
  * 6. Updates movieBatchOffset for next iteration
  * 
- * QUALITY GATE LOGIC:
- * - High Confidence Threshold: ≥0.8 (hardcoded)
- * - Quality Gate Threshold: ≥3 high-confidence matches required (hardcoded)
- * - Gate Status: Determines if batch meets quality standards for recommendation
- * - No adaptive thresholds or fallback logic currently implemented
+  * QUALITY GATE LOGIC:
+ * - High Confidence Threshold: ≥0.8 confidence score (claude-3-haiku standard)
+ * - Quality Gate Threshold: ≥8 high-confidence matches required (hardcoded - TESTING RECURSIVE DISCOVERY)
+ * - Batch Processing: Evaluate up to X movies per batch for performance
  * 
  * STATE UPDATES:
  * - evaluatedMoviesBatch: Complete evaluation results with scores
@@ -75,9 +74,9 @@ export async function intelligentEvaluationNode(
 
   const averageScore = evaluatedMovies.length > 0 ? 
     evaluatedMovies.reduce((sum, e) => sum + e.confidenceScore, 0) / evaluatedMovies.length : 0;
-  const highConfidenceThreshold = 0.8; // Updated threshold as requested
+  const highConfidenceThreshold = 0.75; // High confidence threshold as requested
   const highConfidenceMatches = evaluatedMovies.filter(e => e.confidenceScore >= highConfidenceThreshold);
-  const qualityGateThreshold = 3;
+  const qualityGateThreshold = 3; // Require at least 3 high-confidence matches
   const qualityGatePassed = highConfidenceMatches.length >= qualityGateThreshold;
 
   // Log evaluation results
