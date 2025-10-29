@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+
 import logger from '../config/logger';
 import { logHttpRequest, logHttpResponse } from '../utils/logging';
 
@@ -203,7 +204,7 @@ export async function extractPrimeVideoMovieLinks(baseUrl: string = 'https://www
  * Extract all text content from HTML for LLM processing
  * Simple and robust approach - let the LLM parse what it needs
  */
-function extractRelevantMovieContent($: cheerio.CheerioAPI, fullHtml: string): string {
+function extractRelevantMovieContent($: cheerio.CheerioAPI, _fullHtml: string): string {
   // Extract all text content from the body
   const bodyText = $('body').text();
   

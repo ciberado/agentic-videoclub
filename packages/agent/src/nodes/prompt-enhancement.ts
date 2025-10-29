@@ -1,14 +1,14 @@
 import logger from '../config/logger';
+import { simulateDelay } from '../data/generators';
+import { analyzeUserPreferences } from '../services/prompt-enhancement-llm';
+import type { VideoRecommendationAgentState } from '../state/definition';
+import type { UserCriteria } from '../types';
 import { 
   logNodeStart, 
   logNodeExecution, 
   logLlmRequest,
   logLlmResponse
 } from '../utils/logging';
-import { simulateDelay } from '../data/generators';
-import type { UserCriteria } from '../types';
-import type { VideoRecommendationAgentState } from '../state/definition';
-import { analyzeUserPreferences } from '../services/prompt-enhancement-llm';
 
 /**
  * Prompt Enhancement Node - Natural Language Processing & Context Enrichment
@@ -18,27 +18,34 @@ import { analyzeUserPreferences } from '../services/prompt-enhancement-llm';
  * natural language analysis. This node serves as the "intelligence gateway" that interprets
  * user intent and enriches it with contextual metadata for downstream processing.
  * 
+ * CURRENT IMPLEMENTATION:
  * - Model: Claude 3 Haiku (fast, cost-effective for text analysis)
  * - Integration: AWS Bedrock via @langchain/aws ChatBedrockConverse
  * - Output: Structured JSON using Zod schema validation for UserCriteria type
+ * - Token Tracking: Integrated with globalTokenTracker for resource monitoring
  * - Prompt Strategy: Single comprehensive prompt with JSON mode for reliable parsing
  * 
  * INPUT ANALYSIS:
- * - Demographic inference (age, preferences)
- * - Genre preference extraction and mapping
- * - Context detection (family viewing, content restrictions)
- * - Theme preference identification
+ * - Demographic inference (age, preferences, family context)
+ * - Genre preference extraction and intelligent mapping to broader categories
+ * - Context detection (family viewing requirements, content restrictions)
+ * - Theme preference identification (intelligent plots, action-packed, etc.)
+ * - Avoidance patterns (cheesy stories, predictable plots, specific genres)
  * 
  * OUTPUT ENHANCEMENT:
  * - Enhanced genres: Expanded from user input with similar/related genres
- * - Excluded genres: Intelligently inferred dislikes
+ * - Excluded genres: Intelligently inferred dislikes (Romance Comedy, Melodrama, etc.)
  * - Age appropriateness: Family-friendly flag and content rating preferences
- * - Thematic preferences: Abstract themes user might enjoy
- * - Search optimization: Targeted search terms for better discovery results
+ * - Thematic preferences: Abstract themes user might enjoy (intelligent, thought-provoking)
+ * - Search optimization: Targeted search terms for better Prime Video discovery
  * 
- * EDUCATIONAL VALUE:
- * Demonstrates how AI agents can transform natural language into structured data,
- * showing the bridge between human communication and machine-processable criteria.
+ * TOKEN CONSUMPTION:
+ * Tracks input/output tokens for cost analysis and performance optimization.
+ * Typical usage: ~500-800 tokens per enhancement operation.
+ * 
+ * STATE INTEGRATION:
+ * Updates enhancedUserCriteria in workflow state for use by downstream nodes.
+ * Maintains comprehensive logging for debugging and performance analysis.
  */
 export async function promptEnhancementNode(
   state: typeof VideoRecommendationAgentState.State

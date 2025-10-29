@@ -1,53 +1,72 @@
 import logger from '../config/logger';
+import type { VideoRecommendationAgentState } from '../state/definition';
+import type { MovieEvaluation } from '../types';
 import { 
   logNodeStart, 
   logNodeExecution
 } from '../utils/logging';
-import type { MovieEvaluation } from '../types';
-import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
- * Final Recommendation Compilation Node - Candidate Pool Processing
+ * Batch Control & Final Recommendation Compilation Node - Candidate Pool Processing
  * 
  * PURPOSE:
  * Compiles the final top 5 movie recommendations from accumulated acceptable candidates
  * collected across multiple pagination batches. This node serves as the "recommendation
  * finalizer" that transforms the candidate pool into ranked, diverse final results.
  * 
+ * CURRENT IMPLEMENTATION:
+ * - Candidate Processing: Handles accumulated acceptable candidates (≥0.75 confidence score)
+ * - Quality Ranking: Primary sort by confidence score with diversity optimization
+ * - Token Consumption: Includes final token usage summary in output display
+ * - Comprehensive Output: Detailed movie information with descriptions and reasoning
+ * - Performance Monitoring: Complete workflow statistics and timing analysis
+ * 
  * CORE RESPONSIBILITY:
- * Takes the accumulated pool of acceptable candidates (≥0.6 confidence score) from
- * multiple batch evaluations and produces the final ranked list of 5 recommendations
- * optimized for quality, diversity, and user satisfaction.
+ * Takes the accumulated pool of acceptable candidates from multiple batch evaluations
+ * and produces the final ranked list of 5 recommendations optimized for quality,
+ * diversity, and user satisfaction with comprehensive presentation.
  * 
  * INPUT STATE:
- * - allAcceptableCandidates: Accumulated high-confidence movies from all batches
- * - enhancedUserCriteria: User preferences for diversity optimization
- * - searchAttemptNumber: Current iteration for logging/debugging
- * - maximumSearchAttempts: Context for termination reasoning
+ * - allAcceptableCandidates: Accumulated high-confidence movies (≥0.75) from all batches
+ * - enhancedUserCriteria: User preferences for diversity optimization and filtering
+ * - searchAttemptNumber: Current iteration for logging and performance analysis
+ * - maximumSearchAttempts: Context for termination reasoning and fallback handling
+ * - Token consumption data from globalTokenTracker for resource reporting
  * 
  * OUTPUT STATE:
- * - finalRecommendations: Top 5 movies ranked by multi-factor scoring
+ * - finalRecommendations: Top 5 movies ranked by confidence with diversity optimization
+ * - Comprehensive display including movie descriptions, reasoning, and metadata
+ * - Token usage summary with detailed breakdown of LLM resource consumption
  * 
  * RANKING ALGORITHM:
- * 1. Primary Sort: Confidence score (descending) - ensures quality
- * 2. Diversity Filter: Avoid genre clustering in top results
- * 3. Quality Validation: Ensure minimum standards are met
- * 4. Final Selection: Top 5 after diversity optimization
+ * 1. Primary Sort: Confidence score (descending) - ensures highest quality matches first
+ * 2. Diversity Filter: Avoid genre clustering in top results for variety
+ * 3. Family Appropriateness: Validate family-friendly requirements when specified
+ * 4. Quality Validation: Ensure minimum confidence thresholds are maintained
+ * 5. Final Selection: Top 5 after diversity optimization and quality assurance
  * 
  * DIVERSITY OPTIMIZATION:
- * - Genre Distribution: Avoid recommending multiple movies from same narrow genre
- * - Year Spread: Mix of recent and classic films when possible
- * - Director/Actor Variety: Prevent clustering by same creative teams
- * - Rating Balance: Mix of mainstream and critical favorites
+ * - Genre Distribution: Prevent multiple movies from same narrow genre categories
+ * - Content Rating Balance: Mix of PG-13 and R-rated content when appropriate
+ * - Release Year Variety: Balance of recent releases and established classics
+ * - Thematic Diversity: Avoid clustering around identical themes or storylines
  * 
  * QUALITY ASSURANCE:
- * - Minimum Confidence: All recommendations maintain ≥0.6 threshold
- * - Content Appropriateness: Family-friendly validation when required
- * - Metadata Completeness: Ensure all recommended movies have full information
- * - Fallback Handling: Graceful degradation when candidate pool is small
+ * - Minimum Confidence: All recommendations maintain ≥0.75 confidence threshold
+ * - Content Appropriateness: Family-friendly validation when user specifies requirement
+ * - Metadata Completeness: Ensure recommended movies have complete information
+ * - Fallback Handling: Graceful degradation when candidate pool is limited
+ * 
+ * TOKEN CONSUMPTION REPORTING:
+ * - Comprehensive usage summary showing total tokens consumed across workflow
+ * - Input/output token breakdown for cost analysis and optimization
+ * - Operation count tracking for performance assessment
+ * - Resource consumption transparency for budget planning
  * 
  * PERFORMANCE MONITORING:
- * - Candidate Pool Analysis: Size, quality distribution, diversity metrics
+ * - Candidate pool analysis with size, quality distribution, and diversity metrics
+ * - Workflow completion statistics including success rates and timing data
+ * - Comprehensive logging for debugging and performance optimization
  * - Recommendation Quality: Average confidence, genre spread, user satisfaction predictors
  * - Processing Efficiency: Compilation time and resource usage
  * - Success Metrics: Recommendation count, quality standards achievement
@@ -102,7 +121,7 @@ export async function batchControlAndRoutingNode(
   );
 
   // Apply diversity optimization to avoid genre clustering
-  const diversifiedRecommendations = applyDiversityFilter(sortedCandidates, state.enhancedUserCriteria);
+  const diversifiedRecommendations = applyDiversityFilter(sortedCandidates);
 
   // Select top 5 recommendations (or all available if fewer)
   const finalRecommendations = diversifiedRecommendations.slice(0, 5);
@@ -143,8 +162,7 @@ export async function batchControlAndRoutingNode(
  * Apply diversity filter to prevent genre clustering in recommendations
  */
 function applyDiversityFilter(
-  sortedCandidates: MovieEvaluation[], 
-  userCriteria: any
+  sortedCandidates: MovieEvaluation[]
 ): MovieEvaluation[] {
   const diversified: MovieEvaluation[] = [];
   const usedGenres = new Set<string>();

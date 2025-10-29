@@ -2,8 +2,8 @@
 import 'dotenv/config';
 
 import { StateGraph, START } from '@langchain/langgraph';
-import logger from './config/logger';
 
+import logger from './config/logger';
 // Import from modular structure
 import { batchControlAndRoutingNode } from './nodes/batch-control';
 import { intelligentEvaluationNode } from './nodes/evaluation';

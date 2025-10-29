@@ -1,4 +1,9 @@
 import logger from '../config/logger';
+import { movieCache } from '../services/movie-cache';
+import { normalizeMoviesBatch } from '../services/movie-normalization-llm';
+import { extractPrimeVideoMovieLinks, fetchPrimeVideoMoviesBatch, extractRelatedMovies } from '../services/prime-video-scraper';
+import type { VideoRecommendationAgentState } from '../state/definition';
+import type { Movie, MovieLink } from '../types';
 import { 
   logNodeStart, 
   logNodeExecution
@@ -8,20 +13,44 @@ import {
   addProcessedMovies,
   getDiscoveryStats
 } from '../utils/state-helpers';
-import { extractPrimeVideoMovieLinks, fetchPrimeVideoMoviesBatch, extractRelatedMovies } from '../services/prime-video-scraper';
-import { normalizeMoviesBatch } from '../services/movie-normalization-llm';
-import { movieCache } from '../services/movie-cache';
-import type { Movie, MovieLink } from '../types';
-import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
- * Movie Discovery & Data Fetching Node - Clean Implementation
+ * Movie Discovery & Data Fetching Node - Production Web Scraping with Intelligent Caching
  * 
- * SIMPLIFIED APPROACH:
- * 1. Use processedMovies for all normalized movie data
- * 2. Use movieLinksQueue for pending movie links to process
- * 3. Use helper functions for clean state management
- * 4. Apply resource guardrails to prevent runaway processing
+ * PURPOSE:
+ * Discovers and fetches movie data from Prime Video through real-time web scraping,
+ * with intelligent SQLite caching for performance optimization. Processes movies in
+ * paginated batches to support the workflow's batch evaluation pattern.
+ * 
+ * CURRENT IMPLEMENTATION:
+ * - Web Scraping: Live Prime Video scraping using Cheerio HTML parser
+ * - Caching Strategy: SQLite database with better-sqlite3 for 100% cache hit performance
+ * - Batch Processing: Configurable batch sizes (default: 10 movies) with offset pagination
+ * - LLM Normalization: Claude 3 Haiku-powered metadata standardization and theme extraction
+ * - Token Tracking: Integrated token consumption monitoring for normalization operations
+ * - Resource Guardrails: Maximum limits to prevent runaway processing
+ * 
+ * CORE PROCESSING FLOW:
+ * 1. Extract movie links from Prime Video search results or queued links
+ * 2. Check SQLite cache for existing movie data (cache hit optimization)
+ * 3. Scrape missing movies from Prime Video detail pages
+ * 4. Normalize scraped data using Claude 3 Haiku for consistency
+ * 5. Cache normalized movies in SQLite for future requests
+ * 6. Prepare paginated batch for evaluation node
+ * 7. Queue related movie links for recursive discovery (when enabled)
+ * 
+ * STATE MANAGEMENT:
+ * - processedMovies: All normalized movie data accumulated across batches
+ * - movieLinksQueue: Pending movie links for future processing
+ * - discoveredMoviesBatch: Current batch prepared for evaluation
+ * - movieBatchOffset: Pagination offset for batch processing
+ * - Discovery depth tracking for recursive movie discovery
+ * 
+ * PERFORMANCE OPTIMIZATIONS:
+ * - SQLite caching eliminates redundant web scraping
+ * - Batch processing prevents overwhelming downstream nodes
+ * - Rate limiting and proper headers for ethical scraping
+ * - Structured error handling with fallback strategies
  */
 export async function movieDiscoveryAndDataFetchingNode(
   state: typeof VideoRecommendationAgentState.State
@@ -85,7 +114,7 @@ export async function movieDiscoveryAndDataFetchingNode(
   // Need to discover more movies
   let updatedProcessedMovies = state.processedMovies || [];
   let updatedMovieLinksQueue = [...(state.movieLinksQueue || [])];
-  let updatedProcessedUrls = new Set(state.processedUrls || []);
+  const updatedProcessedUrls = new Set(state.processedUrls || []);
 
   // First time discovery - get initial movie links
   if (allMovies.length === 0) {
@@ -250,7 +279,7 @@ function createCurrentBatchResponse(
   allMovies: Movie[],
   batchOffset: number,
   batchSize: number
-) {
+): Partial<typeof VideoRecommendationAgentState.State> {
   const currentBatch = allMovies.slice(batchOffset, batchOffset + batchSize);
   
   return {

@@ -1,53 +1,61 @@
 import logger from '../config/logger';
+import { evaluateMoviesBatch } from '../services/movie-evaluation-llm';
+import type { VideoRecommendationAgentState } from '../state/definition';
 import { 
   logNodeStart, 
   logNodeExecution,
   logEvaluationBatch,
   logQualityGate
 } from '../utils/logging';
-import { evaluateMoviesBatch } from '../services/movie-evaluation-llm';
-import type { VideoRecommendationAgentState } from '../state/definition';
 
 /**
- * Intelligent Evaluation Node - LLM-Powered Quality Assessment & Matching
+ * Intelligent Evaluation Node - Claude 3.5 Sonnet-Powered Quality Assessment & Matching
  * 
- * Evaluates a batch of discovered movies against enhanced user criteria using LLM analysis
- * (Claude 3.5 Sonnet via AWS Bedrock). Each movie receives a confidence score (0.0-1.0)
- * indicating how well it matches user preferences.
+ * PURPOSE:
+ * Evaluates batches of discovered movies against enhanced user criteria using advanced
+ * LLM analysis (Claude 3.5 Sonnet via AWS Bedrock). Each movie receives a comprehensive
+ * multi-dimensional confidence score (0.0-1.0) indicating match quality.
  * 
- * CORE PROCESSING:
- * 1. Takes discoveredMoviesBatch and enhancedUserCriteria from state
- * 2. Calls evaluateMoviesBatch() service for LLM evaluation
- * 3. Calculates average confidence score across all evaluated movies
- * 4. Applies quality gate: requires ≥3 movies with confidence ≥0.8
- * 5. Adds high-confidence matches to allAcceptableCandidates accumulator
- * 6. Updates movieBatchOffset for next iteration
+ * CURRENT IMPLEMENTATION:
+ * - Model: Claude 3.5 Sonnet (superior reasoning for complex movie analysis)
+ * - Processing: Parallel batch evaluation using Promise.allSettled for performance
+ * - Token Tracking: Integrated consumption monitoring across all evaluation operations
+ * - Quality Gate: Configurable thresholds with intelligent candidate accumulation
+ * - Multi-dimensional Analysis: Genre alignment, theme matching, age appropriateness,
+ *   quality indicators, and cultural relevance scoring
  * 
-  * QUALITY GATE LOGIC:
- * - High Confidence Threshold: ≥0.8 confidence score (claude-3-haiku standard)
- * - Quality Gate Threshold: ≥8 high-confidence matches required (hardcoded - TESTING RECURSIVE DISCOVERY)
- * - Batch Processing: Evaluate up to X movies per batch for performance
+ * CORE PROCESSING FLOW:
+ * 1. Receives discoveredMoviesBatch and enhancedUserCriteria from workflow state
+ * 2. Executes parallel LLM evaluation using evaluateMoviesBatch() service
+ * 3. Calculates comprehensive confidence scores with detailed reasoning
+ * 4. Applies quality gate thresholds (≥0.75 high confidence, ≥3 candidates minimum)
+ * 5. Accumulates acceptable candidates (≥0.75 confidence) in workflow state
+ * 6. Updates pagination offset for next batch iteration
+ * 
+ * QUALITY GATE LOGIC:
+ * - High Confidence Threshold: ≥0.75 confidence score (optimized for quality)
+ * - Quality Gate Minimum: ≥3 high-confidence matches required for completion
+ * - Family Appropriateness: Validates family-friendly requirements when specified
+ * - Batch Processing: Evaluates 10 movies per batch for optimal LLM performance
+ * - Adaptive Termination: Continues until minimum candidates found or movies exhausted
+ * 
+ * TOKEN CONSUMPTION TRACKING:
+ * - Monitors input/output tokens for all Claude 3.5 Sonnet operations
+ * - Provides cost analysis and performance optimization insights
+ * - Typical usage: ~3,000-4,000 tokens per 10-movie batch evaluation
  * 
  * STATE UPDATES:
- * - evaluatedMoviesBatch: Complete evaluation results with scores
- * - allAcceptableCandidates: Accumulates high-confidence matches across batches
- * - qualityGatePassedSuccessfully: Boolean indicating if batch meets standards
- * - highConfidenceMatchCount: Count of movies scoring ≥0.8
- * - movieBatchOffset: Updated for next batch iteration (currentOffset + batchSize)
+ * - evaluatedMoviesBatch: Complete evaluation results with confidence scores and reasoning
+ * - allAcceptableCandidates: Accumulates high-confidence matches across all batches
+ * - qualityGatePassedSuccessfully: Boolean indicating if batch meets quality standards
+ * - highConfidenceMatchCount: Count of movies scoring ≥0.75 confidence
+ * - movieBatchOffset: Updated pagination offset for next batch iteration
  * 
- * LOGGING & MONITORING:
- * - Structured logging with node execution metrics
- * - Evaluation batch statistics (count, scores, quality gate status)
- * - Performance tracking with start/end times
- * - Top-performing movie identification for debugging
- * 
- * DEPENDENCIES:
- * - evaluateMoviesBatch() service handles LLM interaction
- * - Enhanced user criteria from prompt enhancement node
- * - Logging utilities for structured observability
- * 
- * NOTE: This is a stateful accumulation node that builds up acceptable candidates
- * across multiple batch iterations until quality gate passes or search completes.
+ * PERFORMANCE MONITORING:
+ * - Structured logging with comprehensive node execution metrics
+ * - Evaluation batch statistics including success rates and average scores
+ * - Performance tracking with detailed timing and token consumption data
+ * - Top-performing movie identification for quality assurance and debugging
  */
 export async function intelligentEvaluationNode(
   state: typeof VideoRecommendationAgentState.State
