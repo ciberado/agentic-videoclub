@@ -2,6 +2,7 @@ import { ChatBedrockConverse } from '@langchain/aws';
 import { z } from 'zod';
 import logger from '../config/logger';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
+import { globalTokenTracker } from '../utils/token-tracker';
 import type { UserCriteria } from '../types';
 
 /**
@@ -129,6 +130,9 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     }
 
     logLlmResponse('claude-3-haiku', `Prompt enhancement analysis completed`, responseText.length, processingTime);
+
+    // Track token usage for prompt enhancement
+    globalTokenTracker.addUsage(prompt.length, responseText.length, 'prompt-enhancement');
 
     logger.debug('🎯 Prompt enhancement LLM analysis completed', {
       component: 'prompt-enhancement-llm',

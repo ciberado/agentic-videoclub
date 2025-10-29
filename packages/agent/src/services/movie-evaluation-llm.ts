@@ -2,6 +2,7 @@ import { ChatBedrockConverse } from '@langchain/aws';
 import { z } from 'zod';
 import logger from '../config/logger';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
+import { globalTokenTracker } from '../utils/token-tracker';
 import type { Movie, UserCriteria, MovieEvaluation } from '../types';
 
 /**
@@ -164,6 +165,9 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     }
 
     logLlmResponse('claude-3.5-sonnet', `Movie evaluation completed for "${movie.title}"`, responseText.length, processingTime);
+
+    // Track token usage for this evaluation
+    globalTokenTracker.addUsage(prompt.length, responseText.length, 'movie-evaluation');
 
     logger.debug('🎯 Movie evaluation LLM completed', {
       component: 'movie-evaluation-llm',

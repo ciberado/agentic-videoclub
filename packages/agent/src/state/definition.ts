@@ -36,6 +36,9 @@ export const VideoRecommendationAgentState = Annotation.Root({
   
   // Error handling
   lastErrorMessage: Annotation<string | undefined>,
+  
+  // Token usage tracking
+  totalTokensConsumed: Annotation<number>,
 });
 
 export type VideoRecommendationAgentStateType = typeof VideoRecommendationAgentState.State;

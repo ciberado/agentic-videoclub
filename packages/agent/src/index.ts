@@ -11,6 +11,7 @@ import { movieDiscoveryAndDataFetchingNode } from './nodes/movie-discovery';
 import { intelligentEvaluationNode } from './nodes/evaluation';
 import { batchControlAndRoutingNode } from './nodes/batch-control';
 import { shouldContinueSearching } from './routing/flow-control';
+import { globalTokenTracker } from './utils/token-tracker';
 import type { MovieEvaluation } from './types';
 
 
@@ -34,6 +35,9 @@ const compiledVideoRecommendationAgent = videoRecommendationWorkflow.compile();
 // ===== MAIN EXECUTION =====
 
 async function runVideoRecommendationAgent(userInput: string) {
+  // Reset token tracker at the start of each run
+  globalTokenTracker.reset();
+  
   logger.info('🚀 Video Recommendation Agent starting up', {
     version: '0.0.1',
     nodeEnv: process.env.NODE_ENV || 'development',
@@ -71,7 +75,10 @@ async function runVideoRecommendationAgent(userInput: string) {
     workflowCompleted: false,
     
     // Error handling
-    lastErrorMessage: undefined
+    lastErrorMessage: undefined,
+    
+    // Token usage tracking
+    totalTokensConsumed: 0
   };
 
   try {
@@ -98,6 +105,16 @@ async function runVideoRecommendationAgent(userInput: string) {
       console.log(`   Reasoning: ${rec.matchReasoning}`);
       console.log('');
     });
+
+    // Display token usage information
+    const tokenUsage = globalTokenTracker.getUsageBreakdown();
+    console.log('📊 TOKEN USAGE SUMMARY:');
+    console.log('========================');
+    console.log(`Total Tokens Consumed: ${tokenUsage.totalTokens.toLocaleString()}`);
+    console.log(`Input Tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+    console.log(`Output Tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
+    console.log(`LLM Operations: ${tokenUsage.operationCount}`);
+    console.log('');
 
     return finalState;
 

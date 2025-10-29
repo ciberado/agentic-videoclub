@@ -2,6 +2,7 @@ import { ChatBedrockConverse } from '@langchain/aws';
 import { z } from 'zod';
 import logger from '../config/logger';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
+import { globalTokenTracker } from '../utils/token-tracker';
 import type { Movie } from '../types';
 import type { PrimeVideoMovieDetails } from './prime-video-scraper';
 
@@ -164,6 +165,9 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       
       logLlmResponse('claude-3-haiku', `Movie normalization completed for "${movieDetails.title}"`, responseText.length, processingTime);
 
+      // Track token usage for movie normalization
+      globalTokenTracker.addUsage(prompt.length, responseText.length, 'movie-normalization');
+
       logger.debug('🎯 Movie normalization LLM completed', {
         component: 'movie-normalization-llm',
         movieTitle: validatedResponse.title,
@@ -196,6 +200,10 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
           });
           
           logLlmResponse('claude-3-haiku', `Movie normalization fixed for "${movieDetails.title}"`, responseText.length, processingTime);
+          
+          // Track token usage for fixed movie normalization
+          globalTokenTracker.addUsage(prompt.length, responseText.length, 'movie-normalization-fixed');
+          
           return fixedResponse;
           
         } catch (fixError) {
