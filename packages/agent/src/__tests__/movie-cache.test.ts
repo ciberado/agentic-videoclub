@@ -1,7 +1,7 @@
+import fs from 'fs';
+
 import { MovieCache } from '../services/movie-cache';
 import type { Movie } from '../types';
-import fs from 'fs';
-import path from 'path';
 
 describe('MovieCache Service', () => {
   let movieCache: MovieCache;

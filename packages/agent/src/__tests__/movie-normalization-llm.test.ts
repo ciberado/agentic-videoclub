@@ -1,3 +1,4 @@
+import { normalizeMovieData, normalizeMoviesBatch } from '../services/movie-normalization-llm';
 import type { PrimeVideoMovieDetails } from '../services/prime-video-scraper';
 
 // Mock the entire movie-normalization-llm module
@@ -8,9 +9,6 @@ jest.mock('../services/movie-normalization-llm', () => ({
   normalizeMovieData: mockNormalizeMovieData,
   normalizeMoviesBatch: mockNormalizeMoviesBatch
 }));
-
-// Import after mocking
-const { normalizeMovieData, normalizeMoviesBatch } = require('../services/movie-normalization-llm');
 
 describe('Movie Normalization LLM Service', () => {
   beforeEach(() => {

@@ -129,8 +129,8 @@ describe('Prime Video Scraper Service', () => {
 
       const result = await extractPrimeVideoMovieLinks('https://test-primevideo.com');
       
-      // The test should pass regardless of environment limits since it's mocked
-      expect(result.length).toBeLessThanOrEqual(25);
+      // The test should respect the configured limit
+      expect(result.length).toBeLessThanOrEqual(expectedLimit);
       expect(result.length).toBeGreaterThan(0);
     });
   });
