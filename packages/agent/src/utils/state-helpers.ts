@@ -116,3 +116,13 @@ export function getDiscoveryStats(state: VideoRecommendationAgentStateType) {
     maxDepth: state.maxDiscoveryDepth || 2
   };
 }
+
+/**
+ * Add tokens to the running total
+ */
+export function addTokensToState(
+  state: VideoRecommendationAgentStateType,
+  tokens: number
+): number {
+  return (state.totalTokensConsumed || 0) + tokens;
+}
