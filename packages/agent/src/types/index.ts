@@ -22,6 +22,20 @@ export interface Movie {
   themes: string[];
 }
 
+export interface MovieLink {
+  title: string;
+  url: string;
+  source: 'initial_discovery' | 'related_movie' | 'recursive_discovery';
+  addedAt?: Date;
+}
+
+export interface ProcessedMovie {
+  movie: Movie;
+  url: string;
+  source: 'initial_discovery' | 'related_movie' | 'recursive_discovery';
+  processedAt: Date;
+}
+
 export interface MovieEvaluation {
   movie: Movie;
   confidenceScore: number;

@@ -39,7 +39,8 @@ import type { VideoRecommendationAgentState } from '../state/definition';
 export function shouldContinueSearching(state: typeof VideoRecommendationAgentState.State): string {
   const allCandidates = state.allAcceptableCandidates || [];
   const minimumRequired = state.minimumAcceptableCandidates || 5;
-  const allMovies = state.allDiscoveredMovies || [];
+  const processedMovies = state.processedMovies || [];
+  const allMovies = processedMovies.map(pm => pm.movie); // Extract movies from processed movies
   const currentOffset = state.movieBatchOffset || 0;
   const batchSize = state.movieBatchSize || 10;
   
@@ -85,24 +86,42 @@ export function shouldContinueSearching(state: typeof VideoRecommendationAgentSt
     return 'batch_control_and_routing_node';
   }
 
-  // If we have more movies to evaluate, continue with next batch
+  // If we have more movies to evaluate in the current discovered batch, continue evaluation
   if (currentOffset < allMovies.length) {
-    logger.info('� Routing to movie_discovery_and_data_fetching_node - Next batch available', {
+    logger.info('🔄 Routing to intelligent_evaluation_node - Next batch available', {
       currentOffset,
       batchSize,
       totalMovies: allMovies.length,
       remainingMovies: allMovies.length - currentOffset,
       acceptableCandidates: allCandidates.length,
-      reason: 'next_batch_available'
+      reason: 'next_batch_evaluation'
+    });
+    return 'intelligent_evaluation_node';
+  }
+
+  // Check if we can do recursive discovery before finalizing
+  const currentDepth = state.discoveryDepth || 0;
+  const maxDepth = state.maxDiscoveryDepth || 2;
+  const movieLinksQueue = state.movieLinksQueue || [];
+  
+  if (currentDepth < maxDepth && movieLinksQueue.length > 0 && allCandidates.length < minimumRequired) {
+    logger.info('🔄 Routing to movie_discovery_and_data_fetching_node - Recursive discovery available', {
+      currentDepth,
+      maxDepth,
+      queueSize: movieLinksQueue.length,
+      acceptableCandidates: allCandidates.length,
+      minimumRequired,
+      reason: 'recursive_discovery_available'
     });
     return 'movie_discovery_and_data_fetching_node';
   }
 
-  // No more movies available, finalize with current candidates
+  // No more movies or recursive options available, finalize with current candidates
   logger.info('🎯 Routing to batch_control_and_routing_node - No more movies available', {
     acceptableCandidates: allCandidates.length,
     minimumRequired,
     totalMoviesProcessed: allMovies.length,
+    recursiveDiscoveryExhausted: currentDepth >= maxDepth || movieLinksQueue.length === 0,
     reason: 'movies_exhausted'
   });
   return 'batch_control_and_routing_node';

@@ -1,5 +1,5 @@
 import { Annotation } from '@langchain/langgraph';
-import type { UserCriteria, MovieEvaluation, Movie } from '../types';
+import type { UserCriteria, MovieEvaluation, Movie, MovieLink, ProcessedMovie } from '../types';
 
 // Define the state using modern Annotation pattern
 export const VideoRecommendationAgentState = Annotation.Root({
@@ -10,10 +10,16 @@ export const VideoRecommendationAgentState = Annotation.Root({
   enhancedUserCriteria: Annotation<UserCriteria | null>,
   
   // Movie discovery and pagination state
-  allDiscoveredMovies: Annotation<Movie[]>, // All movies found so far
+  processedMovies: Annotation<ProcessedMovie[]>, // All movies that have been fetched and normalized
   discoveredMoviesBatch: Annotation<Movie[]>, // Current batch for evaluation
-  movieBatchOffset: Annotation<number>, // Current position in all movies
+  movieBatchOffset: Annotation<number>, // Current position in processed movies
   movieBatchSize: Annotation<number>, // How many movies to send to evaluation per batch
+  
+  // Movie link queue state (lightweight queue for unprocessed movies)
+  movieLinksQueue: Annotation<MovieLink[]>, // Queue of movie links to process
+  processedUrls: Annotation<Set<string>>, // Fast O(1) lookup for processed URLs
+  discoveryDepth: Annotation<number>, // Current recursion depth
+  maxDiscoveryDepth: Annotation<number>, // Maximum recursion depth allowed
   
   // Evaluation results
   evaluatedMoviesBatch: Annotation<MovieEvaluation[]>, // Current batch evaluations
