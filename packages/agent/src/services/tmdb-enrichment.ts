@@ -43,14 +43,14 @@ export class TMDBEnrichmentService {
   private async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    const apiKey = process.env.TMDB_API_KEY;
-    if (!apiKey) {
-      throw new Error('TMDB_API_KEY not configured');
+    const accessToken = process.env.TMDB_TOKEN;
+    if (!accessToken) {
+      throw new Error('TMDB_TOKEN not configured');
     }
 
     try {
       // Initialize TMDB client
-      this.tmdb = new TMDB(apiKey);
+      this.tmdb = new TMDB(accessToken);
 
       // Ensure the data directory exists
       const dbDir = path.dirname(this.dbPath);
@@ -322,8 +322,8 @@ export class TMDBEnrichmentService {
 
       return enrichmentData;
     } catch (error) {
-      // Re-throw configuration errors (like missing API key)
-      if (error instanceof Error && error.message === 'TMDB_API_KEY not configured') {
+      // Re-throw configuration errors (like missing token)
+      if (error instanceof Error && error.message === 'TMDB_TOKEN not configured') {
         throw error;
       }
 

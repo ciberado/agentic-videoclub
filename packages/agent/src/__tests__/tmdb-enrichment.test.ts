@@ -50,12 +50,11 @@ describe('TMDBEnrichmentService', () => {
     service = new TMDBEnrichmentService(testDbPath);
 
     // Set up environment variable
-    process.env.TMDB_API_KEY = 'test-api-key';
+    process.env.TMDB_TOKEN = 'test-token';
 
     // Reset API call counter
     service.resetApiCallCounter();
   });
-
   afterEach(() => {
     // Clean up test database
     if (fs.existsSync(testDbPath)) {
@@ -63,15 +62,15 @@ describe('TMDBEnrichmentService', () => {
     }
 
     // Clean up environment
-    delete process.env.TMDB_API_KEY;
+    delete process.env.TMDB_TOKEN;
   });
 
   describe('initialization', () => {
-    it('should throw error when TMDB_API_KEY is not provided', async () => {
-      delete process.env.TMDB_API_KEY;
+    it('should throw error when TMDB_TOKEN is not provided', async () => {
+      delete process.env.TMDB_TOKEN;
 
       await expect(service.enrichMovieData(sampleMovie)).rejects.toThrow(
-        'TMDB_API_KEY not configured',
+        'TMDB_TOKEN not configured',
       );
     });
 
