@@ -6,9 +6,12 @@ import type { Movie, UserCriteria, MovieEvaluation } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
 import { globalTokenTracker } from '../utils/token-tracker';
 
+import { tmdbEnrichmentService } from './tmdb-enrichment';
+import { tmdbEnrichmentTool } from './tmdb-enrichment-tool';
+
 /**
  * Movie Evaluation LLM Service
- * 
+ *
  * Specialized LLM integration for intelligent evaluation of movies against user preferences.
  * Uses Claude 3.5 Sonnet for superior reasoning capabilities in complex multi-dimensional
  * movie analysis and matching.
@@ -16,54 +19,103 @@ import { globalTokenTracker } from '../utils/token-tracker';
 
 // Zod schema for movie evaluation output validation
 const MovieEvaluationSchema = z.object({
-  confidenceScore: z.number().min(0).max(1).describe("Confidence score between 0 and 1 indicating how well the movie matches user preferences"),
-  matchReasoning: z.string().describe("Detailed explanation of why this movie matches or doesn't match user preferences"),
-  familyAppropriate: z.boolean().describe("Whether the movie is appropriate for family viewing based on content rating and themes"),
-  genreAlignment: z.number().min(0).max(1).describe("How well movie genres align with user preferences"),
-  themeMatching: z.number().min(0).max(1).describe("How well movie themes match user interests"),
-  qualityIndicators: z.number().min(0).max(1).describe("Overall movie quality based on rating, awards, and critical reception"),
-  ageAppropriateScore: z.number().min(0).max(1).describe("How appropriate the movie is for the user's age group"),
-  culturalRelevance: z.number().min(0).max(1).describe("Cultural relevance and current availability considerations")
+  confidenceScore: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe(
+      'Confidence score between 0 and 1 indicating how well the movie matches user preferences',
+    ),
+  matchReasoning: z
+    .string()
+    .describe("Detailed explanation of why this movie matches or doesn't match user preferences"),
+  familyAppropriate: z
+    .boolean()
+    .describe(
+      'Whether the movie is appropriate for family viewing based on content rating and themes',
+    ),
+  genreAlignment: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('How well movie genres align with user preferences'),
+  themeMatching: z.number().min(0).max(1).describe('How well movie themes match user interests'),
+  qualityIndicators: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Overall movie quality based on rating, awards, and critical reception'),
+  ageAppropriateScore: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe("How appropriate the movie is for the user's age group"),
+  culturalRelevance: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Cultural relevance and current availability considerations'),
 });
 
 /**
- * Create Bedrock client configured for movie evaluation
+ * Create Bedrock client configured for movie evaluation with tools
  */
-function createMovieEvaluationClient(): ChatBedrockConverse {
-  const modelId = process.env.EVALUATION_BEDROCK_MODEL_ID || process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
+function createMovieEvaluationClient(): any {
+  const modelId =
+    process.env.EVALUATION_BEDROCK_MODEL_ID ||
+    process.env.BEDROCK_MODEL_ID ||
+    'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
   const region = process.env.AWS_REGION || 'us-east-1';
 
-  logger.debug('🧠 Initializing movie evaluation Bedrock client', {
+  logger.debug('🧠 Initializing movie evaluation Bedrock client with TMDB tool', {
     modelId,
     region,
-    component: 'movie-evaluation-llm'
+    component: 'movie-evaluation-llm',
+    toolsAvailable: ['tmdb_movie_enrichment'],
   });
 
-  return new ChatBedrockConverse({
+  const llm = new ChatBedrockConverse({
     model: modelId,
     region: region,
     temperature: 0.2, // Slightly higher temperature for nuanced reasoning while maintaining consistency
   });
+
+  // Bind TMDB enrichment tool to the LLM
+  const llmWithTools = llm.bindTools([tmdbEnrichmentTool]);
+
+  return llmWithTools;
 }
 
 /**
  * Evaluate a single movie against user criteria using LLM
  */
-export async function evaluateMovie(movie: Movie, userCriteria: UserCriteria): Promise<MovieEvaluation> {
+export async function evaluateMovie(
+  movie: Movie,
+  userCriteria: UserCriteria,
+): Promise<MovieEvaluation> {
   // In test environment, use faster fallback evaluation to speed up tests
-  const isTestEnvironment = process.env.NODE_ENV === 'test' || 
-                           process.env.JEST_WORKER_ID !== undefined ||
-                           typeof (global as any).testSetupLogged !== 'undefined';
-  
+  const isTestEnvironment =
+    process.env.NODE_ENV === 'test' ||
+    process.env.JEST_WORKER_ID !== undefined ||
+    typeof (global as any).testSetupLogged !== 'undefined';
+
   if (isTestEnvironment) {
     console.log('🧪 Using fast fallback evaluation for test environment');
     return createFallbackEvaluation(movie, userCriteria);
   }
-  
+
   const client = createMovieEvaluationClient();
   const startTime = Date.now();
-  
+
   const prompt = `You are an expert movie recommendation analyst. Evaluate how well this movie matches the user's preferences and provide a comprehensive assessment.
+
+AVAILABLE TOOLS:
+You have access to a TMDB movie enrichment tool (tmdb_movie_enrichment) that can provide additional movie information from The Movie Database. Use this tool if:
+- The movie description is missing or very short (< 50 characters)
+- Genre classifications seem incomplete or unclear  
+- You need more detailed plot information for accurate evaluation
+- You need to verify content appropriateness
+- Overall confidence would be low due to insufficient data
 
 USER PREFERENCES:
 - Original Input: "${userCriteria.originalInput}"
@@ -81,7 +133,7 @@ MOVIE TO EVALUATE:
 - Director: ${movie.director}
 - Family Rating: ${movie.familyRating}
 - Description: "${movie.description}"
-- Themes: ${movie.themes.join(', ')}
+- Themes: ${movie.themes.join(', ')}"
 
 EVALUATION CRITERIA:
 Provide a comprehensive multi-dimensional analysis considering:
@@ -125,14 +177,12 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
 
   try {
     logLlmRequest('claude-3.5-sonnet', prompt, prompt.length);
-    
-    const response = await (client as any).invoke([
-      { role: 'user', content: prompt }
-    ]);
+
+    const response = await (client as any).invoke([{ role: 'user', content: prompt }]);
 
     const responseText = response.content.toString();
     const processingTime = Date.now() - startTime;
-    
+
     // Parse and validate the JSON response
     let parsedResponse: any;
     try {
@@ -143,9 +193,9 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       } else if (cleanedResponse.startsWith('```')) {
         cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
-      
+
       parsedResponse = JSON.parse(cleanedResponse);
-      
+
       // Validate with Zod schema
       MovieEvaluationSchema.parse(parsedResponse);
     } catch (parseError) {
@@ -153,19 +203,24 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
         component: 'movie-evaluation-llm',
         movieTitle: movie.title,
         responseText: responseText.substring(0, 200),
-        parseError: parseError instanceof Error ? parseError.message : String(parseError)
+        parseError: parseError instanceof Error ? parseError.message : String(parseError),
       });
-      
+
       // Fallback to basic evaluation
       logger.warn('🔄 Creating fallback evaluation', {
         component: 'movie-evaluation-llm',
-        movieTitle: movie.title
+        movieTitle: movie.title,
       });
-      
+
       return createFallbackEvaluation(movie, userCriteria);
     }
 
-    logLlmResponse('claude-3.5-sonnet', `Movie evaluation completed for "${movie.title}"`, responseText.length, processingTime);
+    logLlmResponse(
+      'claude-3.5-sonnet',
+      `Movie evaluation completed for "${movie.title}"`,
+      responseText.length,
+      processingTime,
+    );
 
     // Track token usage for this evaluation
     globalTokenTracker.addUsage(prompt.length, responseText.length, 'movie-evaluation');
@@ -177,26 +232,25 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       processingTime: `${processingTime}ms`,
       genreAlignment: parsedResponse.genreAlignment.toFixed(2),
       themeMatching: parsedResponse.themeMatching.toFixed(2),
-      familyAppropriate: parsedResponse.familyAppropriate
+      familyAppropriate: parsedResponse.familyAppropriate,
     });
 
     // Create the final MovieEvaluation object
     const movieEvaluation: MovieEvaluation = {
-      movie,
+      movie, // Return original movie in evaluation result
       confidenceScore: parsedResponse.confidenceScore,
       matchReasoning: parsedResponse.matchReasoning,
-      familyAppropriate: parsedResponse.familyAppropriate
+      familyAppropriate: parsedResponse.familyAppropriate,
     };
 
     return movieEvaluation;
-
   } catch (error) {
     logger.error('❌ Movie evaluation LLM request failed', {
       component: 'movie-evaluation-llm',
       movieTitle: movie.title,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
-    
+
     // Return fallback evaluation
     return createFallbackEvaluation(movie, userCriteria);
   }
@@ -208,65 +262,75 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
 function createFallbackEvaluation(movie: Movie, userCriteria: UserCriteria): MovieEvaluation {
   logger.warn('🔄 Creating fallback evaluation', {
     component: 'movie-evaluation-llm',
-    movieTitle: movie.title
+    movieTitle: movie.title,
   });
 
   // Basic genre matching logic
-  const genreMatches = movie.genre.filter(genre => 
-    userCriteria.enhancedGenres.some(preferredGenre => 
-      preferredGenre.toLowerCase().includes(genre.toLowerCase()) ||
-      genre.toLowerCase().includes(preferredGenre.toLowerCase())
-    )
+  const genreMatches = movie.genre.filter((genre) =>
+    userCriteria.enhancedGenres.some(
+      (preferredGenre) =>
+        preferredGenre.toLowerCase().includes(genre.toLowerCase()) ||
+        genre.toLowerCase().includes(preferredGenre.toLowerCase()),
+    ),
   ).length;
-  
-  const genreAlignment = Math.min(genreMatches / Math.max(userCriteria.enhancedGenres.length, 1), 1.0);
-  
+
+  const genreAlignment = Math.min(
+    genreMatches / Math.max(userCriteria.enhancedGenres.length, 1),
+    1.0,
+  );
+
   // Basic family appropriateness check
   const familyRatings = ['G', 'PG', 'PG-13'];
-  const familyAppropriate = userCriteria.familyFriendly ? 
-    familyRatings.includes(movie.familyRating) : true;
-  
+  const familyAppropriate = userCriteria.familyFriendly
+    ? familyRatings.includes(movie.familyRating)
+    : true;
+
   // Generate higher confidence scores for tests to pass quality gates
   let confidenceScore = 0.6; // Higher base score for tests
-  
+
   if (genreAlignment > 0.3) confidenceScore += 0.2;
   if (familyAppropriate && userCriteria.familyFriendly) confidenceScore += 0.15;
   if (movie.rating >= 7.0) confidenceScore += 0.1;
   if (movie.rating >= 8.0) confidenceScore += 0.05;
-  
+
   // Apply family-friendly penalty if needed
   if (userCriteria.familyFriendly && !familyAppropriate) {
     confidenceScore -= 0.2;
   }
-  
+
   // Add some variety but ensure some high scores for quality gate
   const randomFactor = (Math.random() - 0.5) * 0.1;
   confidenceScore += randomFactor;
-  
+
   confidenceScore = Math.max(0.3, Math.min(0.95, confidenceScore)); // Allow higher scores for tests
-  
+
   return {
     movie,
     confidenceScore,
     matchReasoning: `Fallback evaluation: ${genreMatches > 0 ? `Matches ${genreMatches} preferred genres. ` : 'Limited genre alignment. '}${familyAppropriate ? 'Family appropriate content. ' : 'May not be suitable for family viewing. '}Rating: ${movie.rating}/10.`,
-    familyAppropriate
+    familyAppropriate,
   };
 }
-
-
 
 /**
  * Evaluate multiple movies against user criteria in parallel for efficiency
  */
-export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCriteria): Promise<MovieEvaluation[]> {
+export async function evaluateMoviesBatch(
+  movies: Movie[],
+  userCriteria: UserCriteria,
+): Promise<MovieEvaluation[]> {
+  // Reset TMDB API call counter for this batch
+  tmdbEnrichmentService.resetApiCallCounter();
+
   // Detect test environment more reliably
-  const isTestEnvironment = process.env.NODE_ENV === 'test' || 
-                           process.env.JEST_WORKER_ID !== undefined ||
-                           typeof (global as any).testSetupLogged !== 'undefined';
-                           
+  const isTestEnvironment =
+    process.env.NODE_ENV === 'test' ||
+    process.env.JEST_WORKER_ID !== undefined ||
+    typeof (global as any).testSetupLogged !== 'undefined';
+
   const testMovieLimit = parseInt(process.env.TEST_MOVIE_LIMIT || '3');
   const moviesToEvaluate = isTestEnvironment ? movies.slice(0, testMovieLimit) : movies;
-  
+
   if (isTestEnvironment && movies.length > testMovieLimit) {
     console.log('🧪 Test mode: limiting movie evaluation', {
       component: 'movie-evaluation-llm',
@@ -274,16 +338,16 @@ export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCri
       limitedBatchSize: moviesToEvaluate.length,
       testMovieLimit,
       NODE_ENV: process.env.NODE_ENV,
-      JEST_WORKER_ID: process.env.JEST_WORKER_ID
+      JEST_WORKER_ID: process.env.JEST_WORKER_ID,
     });
     logger.info('🧪 Test mode: limiting movie evaluation', {
       component: 'movie-evaluation-llm',
       originalBatchSize: movies.length,
       limitedBatchSize: moviesToEvaluate.length,
-      testMovieLimit
+      testMovieLimit,
     });
   }
-  
+
   const startTime = Date.now();
   logger.info('🎬 Starting parallel batch movie evaluation', {
     component: 'movie-evaluation-llm',
@@ -291,44 +355,51 @@ export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCri
     userGenres: userCriteria.enhancedGenres,
     familyFriendly: userCriteria.familyFriendly,
     isTestMode: isTestEnvironment,
-    processingMode: 'parallel'
+    processingMode: 'parallel',
   });
 
   // Define types for cleaner result handling
-  type EvaluationSuccess = { success: true; evaluation: MovieEvaluation; movie: Movie; index: number };
+  type EvaluationSuccess = {
+    success: true;
+    evaluation: MovieEvaluation;
+    movie: Movie;
+    index: number;
+  };
   type EvaluationFailure = { success: false; error: any; movie: Movie; index: number };
   type EvaluationResult = EvaluationSuccess | EvaluationFailure;
 
   // Process all movies in parallel using Promise.allSettled for resilient error handling
-  const evaluationPromises = moviesToEvaluate.map(async (movie, index): Promise<EvaluationResult> => {
-    try {
-      const evaluation = await evaluateMovie(movie, userCriteria);
-      logger.debug('🎯 Movie evaluation completed', {
-        component: 'movie-evaluation-llm',
-        movieIndex: index,
-        title: evaluation.movie.title,
-        confidenceScore: evaluation.confidenceScore.toFixed(2),
-        familyAppropriate: evaluation.familyAppropriate
-      });
-      return { success: true, evaluation, movie, index };
-    } catch (error) {
-      logger.warn('⚠️ Movie evaluation failed', {
-        component: 'movie-evaluation-llm',
-        movieIndex: index,
-        title: movie.title,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return { success: false, error, movie, index };
-    }
-  });
+  const evaluationPromises = moviesToEvaluate.map(
+    async (movie, index): Promise<EvaluationResult> => {
+      try {
+        const evaluation = await evaluateMovie(movie, userCriteria);
+        logger.debug('🎯 Movie evaluation completed', {
+          component: 'movie-evaluation-llm',
+          movieIndex: index,
+          title: evaluation.movie.title,
+          confidenceScore: evaluation.confidenceScore.toFixed(2),
+          familyAppropriate: evaluation.familyAppropriate,
+        });
+        return { success: true, evaluation, movie, index };
+      } catch (error) {
+        logger.warn('⚠️ Movie evaluation failed', {
+          component: 'movie-evaluation-llm',
+          movieIndex: index,
+          title: movie.title,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { success: false, error, movie, index };
+      }
+    },
+  );
 
   // Wait for all evaluations to complete
   const results = await Promise.allSettled(evaluationPromises);
-  
+
   // Extract successful evaluations and log failures
   const evaluatedMovies: MovieEvaluation[] = [];
   const failures: Array<{ movie: Movie; error: any; index: number }> = [];
-  
+
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
       if (result.value.success) {
@@ -337,14 +408,14 @@ export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCri
         failures.push({
           movie: result.value.movie,
           error: result.value.error,
-          index: result.value.index
+          index: result.value.index,
         });
       }
     } else if (result.status === 'rejected') {
       failures.push({
         movie: moviesToEvaluate[index],
         error: result.reason,
-        index
+        index,
       });
     }
   });
@@ -352,9 +423,11 @@ export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCri
   const processingTime = Date.now() - startTime;
   const successCount = evaluatedMovies.length;
   const failureCount = failures.length;
-  const averageConfidence = successCount > 0 ? 
-    (evaluatedMovies.reduce((sum, e) => sum + e.confidenceScore, 0) / successCount) : 0;
-  const highConfidenceCount = evaluatedMovies.filter(e => e.confidenceScore >= 0.8).length;
+  const averageConfidence =
+    successCount > 0
+      ? evaluatedMovies.reduce((sum, e) => sum + e.confidenceScore, 0) / successCount
+      : 0;
+  const highConfidenceCount = evaluatedMovies.filter((e) => e.confidenceScore >= 0.8).length;
 
   logger.info('📊 Parallel batch movie evaluation completed', {
     component: 'movie-evaluation-llm',
@@ -367,7 +440,7 @@ export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCri
     highConfidenceCount: highConfidenceCount,
     processingMode: 'parallel',
     isTestMode: isTestEnvironment,
-    originalBatchSize: movies.length
+    originalBatchSize: movies.length,
   });
 
   // Log failure summary if there were any failures
@@ -375,8 +448,8 @@ export async function evaluateMoviesBatch(movies: Movie[], userCriteria: UserCri
     logger.warn('🚫 Evaluation failures summary', {
       component: 'movie-evaluation-llm',
       failureCount: failures.length,
-      failedTitles: failures.map(f => f.movie.title).slice(0, 5), // Show first 5 failed titles
-      totalFailed: failures.length
+      failedTitles: failures.map((f) => f.movie.title).slice(0, 5), // Show first 5 failed titles
+      totalFailed: failures.length,
     });
   }
 
