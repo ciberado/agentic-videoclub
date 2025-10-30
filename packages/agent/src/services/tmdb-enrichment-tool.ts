@@ -110,7 +110,7 @@ This tool provides:
 - TMDB user ratings and vote counts
 
 Returns a JSON string with the enrichment data.
-Note: This tool has rate limiting (max 3 calls per evaluation batch) to prevent API abuse.`,
+Note: This tool has rate limiting (max 10 calls per evaluation batch) to prevent API abuse.`,
 
     schema: z.object({
       title: z.string().describe('The movie title to search for'),

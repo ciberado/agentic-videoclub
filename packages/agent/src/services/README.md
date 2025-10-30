@@ -7,29 +7,49 @@ needed for its corresponding workflow node.
 ## Current Services
 
 ### `prompt-enhancement-llm.ts`
+
 - **Purpose**: Analyzes natural language user input and transforms it into structured movie search criteria
-- **Model**: Claude 3 Haiku (fast, cost-effective for text analysis)  
+- **Model**: Claude 3 Haiku (fast, cost-effective for text analysis)
 - **Input**: Raw user request string
 - **Output**: Structured UserCriteria with enhanced genres, exclusions, themes, and search terms
 - **Used by**: `nodes/prompt-enhancement.ts`
 
-## Future Services
+### `movie-evaluation-llm.ts`
 
-### `movie-evaluation-llm.ts` (planned)
-- **Purpose**: Intelligent batch evaluation of movies against user preferences
+- **Purpose**: Intelligent batch evaluation of movies against user preferences with TMDB enrichment
 - **Model**: Claude 3.5 Sonnet (superior reasoning for complex evaluations)
+- **Tools**: TMDB Movie Enrichment (rate limited to 10 calls per batch)
 - **Input**: Movie batch + enhanced user criteria
 - **Output**: MovieEvaluation objects with confidence scores and reasoning
+- **Used by**: `nodes/evaluation.ts`
 
-### `content-analysis-llm.ts` (planned)  
-- **Purpose**: Deep content analysis for movie metadata extraction
+### `movie-normalization-llm.ts`
+
+- **Purpose**: Normalizes and standardizes movie titles and years from scraped data
 - **Model**: Claude 3 Haiku (efficient for structured data extraction)
-- **Input**: Movie HTML/text content from scraped pages
-- **Output**: Structured movie metadata (themes, content ratings, detailed descriptions)
+- **Input**: Raw movie title strings from web scraping
+- **Output**: Normalized NormalizedMovie objects with clean titles and years
+- **Used by**: `services/prime-video-scraper.ts`
+
+## Supporting Services
+
+### `tmdb-enrichment.ts`
+
+- **Purpose**: TMDB API integration with SQLite caching and rate limiting
+- **Features**: Movie metadata enrichment, intelligent caching, batch processing
+- **Rate Limiting**: Max 10 API calls per evaluation batch
+- **Used by**: `tmdb-enrichment-tool.ts`
+
+### `tmdb-enrichment-tool.ts`
+
+- **Purpose**: LangChain tool wrapper for TMDB enrichment service
+- **Integration**: Provides TMDB data access to LLM evaluation processes
+- **Used by**: `movie-evaluation-llm.ts`
 
 ## Design Philosophy
 
 Each LLM service is:
+
 - **Specialized**: Tailored prompts and schemas for specific use cases
 - **Focused**: Single responsibility per service
 - **Reusable**: Can be used by multiple nodes if needed

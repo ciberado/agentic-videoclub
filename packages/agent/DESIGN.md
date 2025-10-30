@@ -11,6 +11,7 @@ This document outlines the architectural decisions for building a production-rea
 ## System Architecture
 
 ### High-Level Flow
+
 The agent follows a 4-node architecture with pagination-based candidate accumulation and intelligent routing:
 
 1. **Prompt Enhancement** → 2. **Movie Discovery & Data Fetching** → 3. **Intelligent Evaluation** → 4. **Flow Control & Candidate Accumulation**
@@ -22,36 +23,36 @@ The system processes movies in paginated batches, accumulating acceptable candid
 ```mermaid
 graph TD
     A["User Input: 49yo sci-fi fan, hates cheesy stories, family movie night"] --> B[Prompt Enhancement Node]
-    
+
     B --> |"Enhanced Criteria: Genres, themes, family-friendly"| C[Movie Discovery & Web Scraping Node]
-    
+
     C --> |"Batch of Movies (offset-based pagination)"| D[Intelligent Evaluation Node]
-    
+
     D --> |"Evaluated Movies with Confidence Scores"| E[Flow Control & Routing Node]
-    
+
     E --> |"Accumulate acceptable candidates (≥0.6 confidence)"| F[Candidate Pool]
-    
+
     E --> |"Need more candidates + movies available"| G[Next Batch]
     G --> |"Increment batch offset"| C
-    
+
     E --> |"Sufficient candidates (≥5) OR movies exhausted"| H[Batch Control Node]
-    
+
     H --> |"Compile top 5 recommendations"| I[Final Recommendations]
-    
+
     E --> |"Max attempts reached"| J[Best Available Results]
-    
+
     style B fill:#e1f5fe
     style C fill:#f3e5f5
     style D fill:#e8f5e8
     style E fill:#fff3e0
     style H fill:#fff3e0
     style I fill:#e8f5e8
-    
+
     classDef llmNode fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef webScraping fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef evaluation fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
     classDef routing fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    
+
     class B llmNode
     class C webScraping
     class D evaluation
@@ -61,7 +62,9 @@ graph TD
 ### Node Design Decisions
 
 #### 1. Prompt Enhancement Node (`prompt_enhancement_node`)
+
 **Responsibility**: Natural language processing and context enrichment with token tracking
+
 - **LLM Analysis**: Interprets user's natural language description using Claude 3 Haiku for fast, cost-effective analysis
 - **Context Expansion**: Adds demographic insights, genre mappings, and comprehensive preference clarifications
 - **Search Strategy**: Generates specific search terms, filters, and quality criteria optimized for Prime Video discovery
@@ -70,6 +73,7 @@ graph TD
 - **Design Choice**: Front-loads intelligence to improve downstream search accuracy while monitoring resource consumption
 
 **Example Enhancement**:
+
 ```
 Input: "I'm a 49 years old guy that loves science fiction and hates cheesy stories"
 Enhanced Output: {
@@ -84,7 +88,9 @@ Enhanced Output: {
 ```
 
 #### 2. Movie Discovery & Data Fetching Node (`movie_discovery_and_data_fetching_node`)
+
 **Responsibility**: Prime Video web scraping with intelligent caching, pagination, and token tracking
+
 - **Web Scraping**: Real-time scraping of Prime Video movie listings using Cheerio HTML parser with simplified text extraction
 - **Cache Integration**: SQLite database caching achieving 100% cache hit rates for optimal performance
 - **Batch Processing**: Pagination-based processing with configurable batch sizes (default: 10 movies)
@@ -95,18 +101,25 @@ Enhanced Output: {
 - **Design Choice**: Real web scraping combined with intelligent caching and resource monitoring for production reliability
 
 #### 3. Intelligent Evaluation Node (`intelligent_evaluation_node`)
-**Responsibility**: Claude 3.5 Sonnet-powered movie evaluation with comprehensive quality assessment and token tracking
+
+**Responsibility**: Claude 3.5 Sonnet-powered movie evaluation with TMDB enrichment tools and comprehensive quality assessment
+
 - **Parallel Batch Evaluation**: Evaluates current movie batch against enhanced user criteria using Promise.allSettled for optimal performance
+- **TMDB Tool Integration**: LangChain tool-enabled LLM can request TMDB movie enrichment for additional metadata (genres, ratings, cast, reviews)
+- **Manual Tool Execution**: Custom tool execution flow that intercepts LLM tool requests, executes TMDB enrichment, and provides results back to LLM
+- **Rate-Limited Enrichment**: TMDB API calls limited to 10 per evaluation batch with SQLite caching to minimize API usage
 - **Multi-Dimensional Analysis**: Advanced reasoning across genre alignment, theme matching, age appropriateness, quality indicators, and cultural relevance
 - **Confidence Scoring**: Generates 0.0-1.0 confidence scores with detailed reasoning explanations (typically 75-85% for high matches)
 - **Quality Gate Optimization**: Uses ≥0.75 confidence threshold for high-quality matches (optimized from previous 0.6 threshold)
 - **Family Appropriateness**: Comprehensive content suitability assessment for family viewing contexts
 - **Candidate Filtering**: Identifies acceptable candidates (≥0.75 confidence) for accumulation in candidate pool
 - **Token Monitoring**: Comprehensive tracking of Claude 3.5 Sonnet operations (~3,000-4,000 tokens per 10-movie batch)
-- **Design Choice**: Claude 3.5 Sonnet for superior reasoning capabilities with complete resource consumption visibility
+- **Design Choice**: Claude 3.5 Sonnet for superior reasoning capabilities with tool access for enhanced movie analysis
 
 #### 4. Flow Control & Batch Control Node (`shouldContinueSearching` + `batch_control_and_routing_node`)
+
 **Responsibility**: Pagination management, candidate accumulation, final recommendation compilation, and token reporting
+
 - **Candidate Accumulation**: Collects acceptable candidates (≥0.75 confidence) across multiple batches
 - **Pagination Logic**: Manages batch offsets and determines when more movies are available for processing
 - **Threshold Management**: Continues processing until minimum candidates (5) are found or movies exhausted
@@ -119,6 +132,7 @@ Enhanced Output: {
 ## Key Architectural Decisions
 
 ### Comprehensive Token Consumption Tracking
+
 - **Decision**: Global token tracking system with detailed monitoring across all LLM operations
 - **Implementation**: TokenTracker utility class integrated with all LLM services (evaluation, enhancement, normalization)
 - **Rationale**:
@@ -129,6 +143,7 @@ Enhanced Output: {
   - Cost prediction and optimization capabilities for large-scale usage
 
 **Token Tracking Features**:
+
 - **Real-time Monitoring**: Tracks tokens for each LLM operation as it occurs
 - **Detailed Breakdown**: Separates input tokens (prompts) from output tokens (responses)
 - **Operation Counting**: Monitors total number of LLM calls across the workflow
@@ -136,20 +151,23 @@ Enhanced Output: {
 - **Final Reporting**: Comprehensive usage summary in final output with formatted statistics
 
 **Typical Token Consumption** (based on test run with 127,889 total tokens):
+
 - Prompt Enhancement: ~500-800 tokens per operation
 - Movie Evaluation: ~3,000-4,000 tokens per 10-movie batch
 - Movie Normalization: ~400-600 tokens per movie batch
 - Total Workflow: ~120,000-130,000 tokens for complete recommendation process
 
 ### Enhanced Prompt Processing
+
 - **Decision**: Dedicated Claude 3 Haiku-powered prompt enhancement as first step
-- **Rationale**: 
+- **Rationale**:
   - Transforms vague user requests into structured search criteria with genre mapping and theme extraction
   - Improves downstream search accuracy and relevance through semantic understanding
   - Handles complex contextual requirements (family-friendly, age-appropriate content)
   - Cost-effective model choice for fast text analysis without sacrificing quality
 
 ### Production Web Scraping with Caching
+
 - **Decision**: Real-time Prime Video scraping with SQLite caching layer
 - **Rationale**:
   - Live data ensures current movie availability and pricing information
@@ -158,6 +176,7 @@ Enhanced Output: {
   - LLM-powered normalization ensures consistent data quality
 
 ### Pagination-Based Candidate Accumulation
+
 - **Decision**: Process movies in paginated batches while accumulating acceptable candidates
 - **Rationale**:
   - Prevents overwhelming Claude 3.5 Sonnet with large batch sizes for optimal reasoning quality
@@ -166,6 +185,7 @@ Enhanced Output: {
   - Maintains comprehensive coverage of available movie inventory
 
 ### Intelligent Threshold Management
+
 - **Decision**: Candidate accumulation with configurable quality thresholds
 - **Rationale**:
   - Balances recommendation quality with system responsiveness
@@ -174,6 +194,7 @@ Enhanced Output: {
   - Adapts to movie availability and user criteria specificity
 
 ### Production LLM Integration with Token Tracking
+
 - **Decision**: AWS Bedrock with model-specific optimization and comprehensive resource monitoring
 - **Rationale**:
   - Enterprise-grade reliability and security for production deployments
@@ -184,8 +205,9 @@ Enhanced Output: {
   - Resource transparency enabling budget planning and usage optimization
 
 ### Technology Stack
+
 - **LangGraph.js v1**: Modern workflow orchestration with Annotation.Root() state management
-- **TypeScript**: Type safety and better developer experience  
+- **TypeScript**: Type safety and better developer experience
 - **AWS Bedrock**: Production LLM integration via @langchain/aws ChatBedrockConverse
   - **Claude 3 Haiku**: Fast prompt enhancement and content analysis (~500-800 tokens/operation)
   - **Claude 3.5 Sonnet**: Advanced reasoning for movie evaluation (~3,000-4,000 tokens/batch)
@@ -198,14 +220,15 @@ Enhanced Output: {
 ## State Management
 
 ### Modern LangGraph v1 State Structure with Token Tracking
+
 ```typescript
 const VideoRecommendationAgentState = Annotation.Root({
   // Input from user
   userInput: Annotation<string>,
-  
+
   // Enhanced criteria from prompt enhancement node
   enhancedUserCriteria: Annotation<UserCriteria | null>,
-  
+
   // Movie discovery and pagination state
   allDiscoveredMovies: Annotation<Movie[]>, // All movies found so far
   discoveredMoviesBatch: Annotation<Movie[]>, // Current batch for evaluation
@@ -213,33 +236,34 @@ const VideoRecommendationAgentState = Annotation.Root({
   movieBatchSize: Annotation<number>, // How many movies to send to evaluation per batch
   processedMovies: Annotation<Movie[]>, // Normalized movies from web scraping
   movieLinksQueue: Annotation<MovieLink[]>, // Queued links for processing
-  
+
   // Evaluation results and candidate accumulation
   evaluatedMoviesBatch: Annotation<MovieEvaluation[]>, // Current batch evaluations
   allAcceptableCandidates: Annotation<MovieEvaluation[]>, // All good candidates so far (≥0.75 confidence)
   qualityGatePassedSuccessfully: Annotation<boolean>,
   highConfidenceMatchCount: Annotation<number>,
   minimumAcceptableCandidates: Annotation<number>, // Minimum candidates needed (default: 5)
-  
+
   // Control flow state
   searchAttemptNumber: Annotation<number>,
   maximumSearchAttempts: Annotation<number>,
   finalRecommendations: Annotation<MovieEvaluation[]>,
-  
+
   // Token consumption tracking
   totalTokensConsumed: Annotation<number>, // Accumulated token usage across all LLM operations
-  
+
   // Discovery and processing state
   discoveryDepth: Annotation<number>, // Current depth for recursive discovery
   maxDiscoveryDepth: Annotation<number>, // Maximum recursion depth
   processedUrls: Annotation<string[]>, // URLs already processed to avoid duplicates
-  
+
   // Error handling
   lastErrorMessage: Annotation<string | undefined>,
 });
 ```
 
 ### Conditional Routing Logic with Quality Optimization
+
 - **Primary Path**: Prompt Enhancement → Movie Discovery → Intelligent Evaluation → Flow Control (accumulate candidates)
 - **Pagination Path**: Flow Control → (Need more candidates + movies available) → Movie Discovery (next batch with offset)
 - **Completion Path**: Flow Control → (Sufficient candidates ≥5 OR movies exhausted) → Batch Control → Final Recommendations with Token Summary
@@ -250,6 +274,7 @@ const VideoRecommendationAgentState = Annotation.Root({
 ## Production Implementation Approach
 
 ### Real-World Integration Strategy
+
 The current implementation uses production-grade services and APIs:
 
 - **AWS Bedrock Integration**: Live Claude 3 Haiku and 3.5 Sonnet models with proper authentication
@@ -258,6 +283,7 @@ The current implementation uses production-grade services and APIs:
 - **Comprehensive Monitoring**: Every operation logged with timing, costs, and success metrics
 
 ### Benefits of Production Approach
+
 1. **Real Data Quality**: Current movie availability, ratings, and metadata from live sources
 2. **Scalable Architecture**: Caching, pagination, and batch processing for production loads
 3. **Enterprise Reliability**: Error handling, fallback strategies, and service resilience
@@ -281,12 +307,14 @@ This architecture demonstrates:
 ## Future Enhancements
 
 ### Phase 2 Improvements
+
 - **Multi-Platform Scraping**: Extend beyond Prime Video to Netflix, Hulu, Disney+, etc.
 - **Parallel Batch Processing**: Concurrent evaluation of multiple movie batches for improved performance
 - **Advanced User Modeling**: Machine learning-based preference learning from user feedback and ratings
 - **Streaming Availability APIs**: Integration with JustWatch or similar services for comprehensive availability data
 
 ### Advanced Features
+
 - **Real-Time Price Monitoring**: Track subscription costs and promotional offers across platforms
 - **Social Recommendation Engine**: Incorporate ratings and reviews from trusted critics and friends
 - **Content Similarity Engine**: Vector embeddings for advanced content-based filtering and clustering
@@ -295,18 +323,21 @@ This architecture demonstrates:
 ## Implementation Notes
 
 ### LangGraph v1 Modernization
+
 - **State Definition**: Uses modern `Annotation.Root()` pattern instead of deprecated channels
 - **Type Safety**: Improved TypeScript integration with `typeof VideoRecommendationAgentState.State`
 - **Constructor**: Modern `new StateGraph(VideoRecommendationAgentState)` syntax
 - **Future-Proof**: Compatible with latest LangGraph.js ecosystem updates
 
 ### Production Architecture
+
 - **Real HTTP Operations**: Live web scraping with proper rate limiting and error handling
 - **Production LLM Calls**: AWS Bedrock integration with cost tracking and response validation
 - **Intelligent Caching**: SQLite database with cache hit optimization and performance metrics
 - **Error Boundaries**: Comprehensive error recovery and graceful degradation strategies
 
 ### Production Logging with Winston
+
 - Node-level execution tracking with timing and performance metrics
 - HTTP request/response logging for web scraping operations with success rates
 - LLM interaction logging with token usage, costs, and response quality metrics

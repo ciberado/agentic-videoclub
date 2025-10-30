@@ -131,17 +131,17 @@ describe('TMDBEnrichmentService', () => {
         adult: false,
       });
 
-      // Make 3 successful calls (should work)
-      for (let i = 0; i < 3; i++) {
+      // Make 10 successful calls (should work)
+      for (let i = 0; i < 10; i++) {
         const testMovie = { ...sampleMovie, title: `Test Movie ${i}` };
         const result = await service.enrichMovieData(testMovie);
         expect(result).toBeTruthy();
       }
 
-      // 4th call should be rejected due to rate limiting
-      const testMovie4 = { ...sampleMovie, title: 'Test Movie 4' };
-      const result4 = await service.enrichMovieData(testMovie4);
-      expect(result4).toBeNull();
+      // 11th call should be rejected due to rate limiting
+      const testMovie11 = { ...sampleMovie, title: 'Test Movie 11' };
+      const result11 = await service.enrichMovieData(testMovie11);
+      expect(result11).toBeNull();
     });
 
     it('should reset API call counter', () => {

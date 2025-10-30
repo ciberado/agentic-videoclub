@@ -31,7 +31,7 @@ export class TMDBEnrichmentService {
   private dbPath: string;
   private initialized = false;
   private apiCallCount = 0;
-  private readonly maxApiCallsPerBatch = 3; // Simple rate limiting
+  private readonly maxApiCallsPerBatch = 10; // Simple rate limiting
 
   constructor(dbPath: string = 'data/movies.db') {
     this.dbPath = path.resolve(process.cwd(), dbPath);

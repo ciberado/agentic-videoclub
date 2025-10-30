@@ -110,12 +110,18 @@ export async function evaluateMovie(
   const prompt = `You are an expert movie recommendation analyst. Evaluate how well this movie matches the user's preferences and provide a comprehensive assessment.
 
 AVAILABLE TOOLS:
-You have access to a TMDB movie enrichment tool (tmdb_movie_enrichment) that can provide additional movie information from The Movie Database. Use this tool if:
+You have access to a TMDB movie enrichment tool (tmdb_movie_enrichment) that can provide additional movie information from The Movie Database. 
+
+IMPORTANT: If you need to use the tool, call it FIRST, then provide your evaluation JSON based on the enriched data. 
+
+Use this tool if:
 - The movie description is missing or very short (< 50 characters)
 - Genre classifications seem incomplete or unclear  
 - You need more detailed plot information for accurate evaluation
 - You need to verify content appropriateness
 - Overall confidence would be low due to insufficient data
+
+If you use the tool, wait for the results and then provide your final evaluation JSON.
 
 USER PREFERENCES:
 - Original Input: "${userCriteria.originalInput}"
@@ -178,9 +184,140 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
   try {
     logLlmRequest('claude-3.5-sonnet', prompt, prompt.length);
 
-    const response = await (client as any).invoke([{ role: 'user', content: prompt }]);
+    // For tool-enabled LLMs, we need to handle the conversation flow properly
+    // Manual tool execution implementation
+    let response = await (client as any).invoke([{ role: 'user', content: prompt }]);
 
-    const responseText = response.content.toString();
+    // Check if the LLM wants to use tools
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      logger.info('🎬 LLM requested tool usage - executing tools manually', {
+        component: 'movie-evaluation-llm',
+        movieTitle: movie.title,
+        toolCallsCount: response.tool_calls.length,
+        tools: response.tool_calls.map((call: any) => call.name || 'unknown'),
+      });
+
+      // Execute each tool call
+      const toolMessages = [];
+
+      for (const toolCall of response.tool_calls) {
+        try {
+          if (toolCall.name === 'tmdb_movie_enrichment') {
+            logger.info('🎬 Executing TMDB enrichment tool', {
+              component: 'movie-evaluation-llm',
+              movieTitle: movie.title,
+              toolArgs: toolCall.args,
+            });
+
+            // Execute the TMDB enrichment tool directly
+            const toolResult = await tmdbEnrichmentTool.invoke(toolCall.args);
+
+            toolMessages.push({
+              role: 'tool',
+              content: toolResult,
+              tool_call_id: toolCall.id,
+            });
+
+            logger.info('🎬 TMDB tool executed successfully', {
+              component: 'movie-evaluation-llm',
+              movieTitle: movie.title,
+              resultLength: typeof toolResult === 'string' ? toolResult.length : 'N/A',
+            });
+          }
+        } catch (toolError) {
+          logger.error('❌ Tool execution failed', {
+            component: 'movie-evaluation-llm',
+            movieTitle: movie.title,
+            toolName: toolCall.name,
+            error: toolError instanceof Error ? toolError.message : String(toolError),
+          });
+
+          toolMessages.push({
+            role: 'tool',
+            content: `Error executing tool: ${toolError instanceof Error ? toolError.message : String(toolError)}`,
+            tool_call_id: toolCall.id,
+          });
+        }
+      }
+
+      // Now invoke the LLM again with the tool results
+      const followUpMessages = [
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: response.content, tool_calls: response.tool_calls },
+        ...toolMessages,
+        {
+          role: 'user',
+          content: 'Now please provide your movie evaluation as JSON based on the tool results.',
+        },
+      ];
+
+      response = await (client as any).invoke(followUpMessages);
+
+      logger.info('🎬 Final LLM response after tool execution', {
+        component: 'movie-evaluation-llm',
+        movieTitle: movie.title,
+        hasContent: !!response.content,
+      });
+    }
+
+    let responseText: string;
+
+    // Log the raw response structure for debugging
+    logger.debug('🔍 LLM Response structure', {
+      component: 'movie-evaluation-llm',
+      movieTitle: movie.title,
+      responseType: typeof response.content,
+      isArray: Array.isArray(response.content),
+      contentLength: response.content?.length,
+      hasToolCalls: response.tool_calls?.length > 0,
+      rawStructure: JSON.stringify(response.content).substring(0, 200),
+    });
+
+    // Check if the LLM made tool calls
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      logger.info('🎬 LLM is using TMDB enrichment tool', {
+        component: 'movie-evaluation-llm',
+        movieTitle: movie.title,
+        toolCallsCount: response.tool_calls.length,
+        tools: response.tool_calls.map((call: any) => call.name || 'unknown'),
+      });
+
+      // The tool execution should be handled automatically by LangChain when tools are bound
+      // but we might need to wait for the final response after tool execution
+      // Let's extract the final response properly
+    }
+
+    if (response.content && Array.isArray(response.content)) {
+      // Handle tool response format - the content is an array of message parts
+      // Look for text content that contains JSON, prioritizing later messages
+      const textContents = response.content
+        .filter((item: any) => item.type === 'text')
+        .map((item: any) => item.text);
+
+      // Find the text that looks like JSON (contains { and })
+      let jsonText = textContents.find(
+        (text: string) => text.trim().includes('{') && text.trim().includes('}'),
+      );
+
+      // If no JSON found, try the last text content
+      if (!jsonText && textContents.length > 0) {
+        jsonText = textContents[textContents.length - 1];
+      }
+
+      responseText = jsonText || response.content.toString();
+
+      logger.debug('🔍 Extracted response text from tool-enabled response', {
+        component: 'movie-evaluation-llm',
+        movieTitle: movie.title,
+        textContentsCount: textContents.length,
+        selectedText: responseText.substring(0, 100),
+        foundJson: responseText.includes('{') && responseText.includes('}'),
+        usedTools: response.tool_calls?.length > 0,
+      });
+    } else {
+      responseText = response.content?.toString() || '';
+    }
+
     const processingTime = Date.now() - startTime;
 
     // Parse and validate the JSON response
