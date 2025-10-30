@@ -24,7 +24,7 @@ packages/*/dist/
 *.sqlite-wal
 
 # movie cache data
-packages/agent/data/
+packages/agentic/data/
 
 # misc
 .DS_Store
