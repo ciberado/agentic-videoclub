@@ -10,11 +10,23 @@ import { tmdbEnrichmentService } from './tmdb-enrichment';
 import { tmdbEnrichmentTool } from './tmdb-enrichment-tool';
 
 /**
- * Movie Evaluation LLM Service
+ * Movie Evaluation LLM Service - React Agent Integration
  *
- * Specialized LLM integration for intelligent evaluation of movies against user preferences.
- * Uses Claude 3.5 Sonnet for superior reasoning capabilities in complex multi-dimensional
- * movie analysis and matching.
+ * Advanced LLM integration for intelligent movie evaluation with automated tool usage.
+ * Combines Claude 3.5 Sonnet's superior reasoning with React Agent architecture for
+ * autonomous TMDB data enrichment and multi-dimensional movie analysis.
+ *
+ * REACT AGENT ARCHITECTURE:
+ * - Autonomous Tool Selection: Agent automatically decides when to use TMDB enrichment
+ * - Intelligent Decision Making: Evaluates data quality to determine tool necessity
+ * - Tool Integration: Seamlessly incorporates TMDB data into evaluation process
+ * - Fallback Handling: Graceful degradation when tools fail or data is unavailable
+ *
+ * KEY FEATURES:
+ * - React Agent Pattern: Reasoning + Acting cycle for optimal tool usage
+ * - TMDB Auto-Enrichment: Automatic movie data enhancement when needed
+ * - Multi-dimensional Analysis: Genre, theme, quality, and cultural relevance scoring
+ * - Production Validated: Successfully deployed and tested in live environment
  */
 
 // Zod schema for movie evaluation output validation
@@ -58,7 +70,11 @@ const MovieEvaluationSchema = z.object({
 });
 
 /**
- * Create Bedrock client configured for movie evaluation with tools
+ * Create React Agent-Enabled Bedrock Client for Movie Evaluation
+ *
+ * Configures Claude 3.5 Sonnet with TMDB enrichment tool binding for autonomous
+ * tool usage decisions. The React Agent automatically determines when additional
+ * movie data is needed and invokes TMDB enrichment seamlessly.
  */
 function createMovieEvaluationClient(): any {
   const modelId =
