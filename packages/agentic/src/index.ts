@@ -109,10 +109,9 @@ async function runVideoRecommendationAgent(userInput: string): Promise<void> {
     const tokenUsage = globalTokenTracker.getUsageBreakdown();
     console.log('📊 TOKEN USAGE SUMMARY:');
     console.log('========================');
-    console.log(`Total Tokens Consumed: ${tokenUsage.totalTokens.toLocaleString()}`);
-    console.log(`Input Tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
-    console.log(`Output Tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
-    console.log(`LLM Operations: ${tokenUsage.operationCount}`);
+    console.log(`Total characters Consumed: ${tokenUsage.totalTokens.toLocaleString()}`);
+    console.log(`Input characters: ${tokenUsage.inputTokens.toLocaleString()}`);
+    console.log(`Output characters: ${tokenUsage.outputTokens.toLocaleString()}`);
     console.log('');
   } catch (error) {
     logger.error('💥 Video Recommendation Agent failed', {

@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { convert } from 'html-to-text';
 
 import logger from '../config/logger';
 import { logHttpRequest, logHttpResponse } from '../utils/logging';
@@ -207,15 +208,18 @@ export async function extractPrimeVideoMovieLinks(
  * Extract all text content from HTML for LLM processing
  * Simple and robust approach - let the LLM parse what it needs
  */
-function extractRelevantMovieContent($: cheerio.CheerioAPI, _fullHtml: string): string {
-  // Extract all text content from the body
-  const bodyText = $('body').text();
-
-  // Clean up excessive whitespace
-  const cleanedText = bodyText.replace(/\s+/g, ' ').trim();
-
-  // Limit size to prevent token overuse (about 4000 tokens max)
-  return cleanedText.substring(0, 16000);
+function extractRelevantMovieContent(html: string): string {
+  const cleanedText = convert(html, {
+    selectors: [
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+      { selector: 'noscript', format: 'skip' },
+      { selector: 'iframe', format: 'skip' },
+      { selector: 'svg', format: 'skip' },
+    ],
+  });
+  // Limit size to prevent token overuse
+  return cleanedText.substring(0, 25000);
 }
 
 /**
@@ -408,7 +412,7 @@ export async function fetchPrimeVideoMovieDetails(
     const year = yearMatch ? parseInt(yearMatch[1]) : undefined;
 
     // Extract relevant HTML content for LLM processing
-    const relevantHtml = extractRelevantMovieContent($, html);
+    const relevantHtml = extractRelevantMovieContent(html);
 
     // Extract related movies from the full HTML content
     const relatedMovies = extractRelatedMovies(html);
