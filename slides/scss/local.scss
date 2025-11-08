@@ -1,6 +1,3 @@
-@use 'constants.scss';
-
-
 .slidedeck.speaker section.active div.slide-notes {
 	font-size: 80pt;
 
@@ -9,3 +6,23 @@
     }
 }
 
+#the-workflow {
+    .snippet {
+        transition: background-color 0.3s ease-in-out;
+    }
+
+    &:has(.partial-shown) {
+        .snippet {
+            animation: highlight 0.5s ease-in-out forwards;
+        }
+    }    
+}
+
+@keyframes highlight {
+    from {
+        background-color: transparent;
+    }
+    to {
+        background-color: #ffeb3b;
+    }
+}

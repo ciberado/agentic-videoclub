@@ -1,0 +1,282 @@
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lilita+One&display=swap");
+.slidedeck {
+  font-family: Open Sans, sans-serif;
+  font-weight: 400;
+  font-size: 24pt;
+}
+.slidedeck.aspect-ratio-4-3 {
+  font-size: 16.8pt;
+}
+.slidedeck {
+  /*
+      General slide color, fonts, etc.
+  */
+}
+.slidedeck section {
+  background-color: white;
+  color: black;
+}
+.slidedeck section a,
+.slidedeck section a:active,
+.slidedeck section a:hover,
+.slidedeck section a:visited,
+.slidedeck section a:focus,
+.slidedeck section link {
+  color: black;
+  text-decoration: none;
+  border-bottom: 8px solid rgba(255, 165, 0, 0.5);
+}
+.slidedeck section strong {
+  color: orange;
+}
+.slidedeck section > h1, .slidedeck section > h2, .slidedeck section > h3 {
+  font-family: "Lilita One", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  padding: 40px;
+  margin: 40px;
+  line-height: 0.9em;
+  background-color: rgba(255, 231, 32, 0.86);
+  color: #d75050;
+  position: relative;
+  z-index: 10;
+  text-transform: lowercase;
+}
+.slidedeck section ul {
+  list-style: none;
+}
+.slidedeck section > iframe, .slidedeck section > video {
+  width: 100%;
+  height: 100%;
+}
+.slidedeck section .iFrameNextSlide {
+  position: absolute;
+  top: 48%;
+  right: 1em;
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  background: white;
+  opacity: 0.7;
+}
+.slidedeck pre > code {
+  padding: 25px;
+  margin: 0 auto;
+  display: block;
+  width: 80%;
+  border: 2px solid silver;
+  border-radius: 10px;
+  background-color: #e9e9e9;
+  line-height: 1.2em;
+  max-height: 780px;
+  overflow: auto;
+}
+.slidedeck .title {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.slidedeck .title > h1 {
+  font-size: 300%;
+}
+.slidedeck .title > h1,
+.slidedeck .title > h2 {
+  margin: 0;
+  width: 80%;
+  text-align: center;
+}
+.slidedeck .title > h2 {
+  padding-bottom: 20px;
+}
+.slidedeck .title > p {
+  color: black;
+  position: absolute;
+  width: 90%;
+  left: 5%;
+  bottom: 8px;
+}
+.slidedeck .curtain > h2 {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  height: 45%;
+  background: rgba(255, 231, 32, 0.86);
+  margin: 0;
+  bottom: 0;
+  position: absolute;
+  width: 100%;
+}
+.slidedeck .agenda > ul {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 0 0 0 2.5%;
+  padding: 0;
+}
+.slidedeck .agenda > ul > li {
+  width: 30%;
+  min-height: 6em;
+  margin: 0.5em;
+  padding: 0.5em 1em 0.5em 0.4em;
+  border-left: 2px solid silver;
+}
+.slidedeck .blocks > p {
+  margin: 0 100px 0 100px;
+}
+.slidedeck .blocks > ul {
+  margin: 28.8pt 48pt;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+}
+.slidedeck .blocks > ul li {
+  display: block;
+  margin: 20px;
+  font-size: 21px;
+  text-align: center;
+}
+.slidedeck .blocks > ul li img {
+  display: block;
+  max-height: 60%;
+  margin: 0 auto 20px auto;
+}
+.slidedeck .blocks > ul li span {
+  color: rgb(127.5, 127.5, 127.5);
+}
+.slidedeck .coverbg > div.block-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -10;
+  opacity: 1;
+}
+.slidedeck .coverbg > div.block-image img {
+  object-fit: cover;
+  height: 100%;
+  width: 100%;
+  opacity: 1;
+}
+.slidedeck .coverbg.fadedbg > div.block-image {
+  filter: contrast(10%) brightness(180%);
+}
+.slidedeck .coverbg.blurredbg > div.block-image {
+  filter: blur(4px);
+}
+.slidedeck .coverbg.grayedbg > div.block-image {
+  filter: grayscale(100%);
+}
+.slidedeck .coverbg.huebg45 > div.block-image {
+  filter: hue-rotate(45deg);
+}
+.slidedeck .coverbg.huebg90 > div.block-image {
+  filter: hue-rotate(90deg);
+}
+.slidedeck .coverbg.huebg180 > div.block-image {
+  filter: hue-rotate(180deg);
+}
+.slidedeck .framed-illustration {
+  display: grid;
+  grid-template-columns: 50% 50%;
+}
+.slidedeck .framed-illustration h2 {
+  grid-column: 1/span 2;
+}
+.slidedeck .framed-illustration > div.block-image {
+  overflow: hidden;
+  margin: 0 1em 1em 1em;
+}
+.slidedeck .framed-illustration > div.block-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.slidedeck .framed-illustration > p, .slidedeck .framed-illustration > ul {
+  margin: 0 1em;
+}
+.slidedeck .framed-illustration br {
+  margin-bottom: 1em;
+}
+.slidedeck .framed-illustration.right > div.block-image {
+  grid-row: 2;
+  grid-column: 2;
+}
+.slidedeck .framed-illustration.right > p, .slidedeck .framed-illustration.right > ul {
+  grid-row: 2;
+  grid-column: 1;
+}
+.slidedeck .illustration > div.block-image {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+.slidedeck .illustration > div.block-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.slidedeck .illustration > p, .slidedeck .illustration > ul, .slidedeck .illustration > .content-group {
+  margin-left: 50%;
+  padding: 0 2em;
+}
+.slidedeck .illustration > ul > li {
+  margin-bottom: 1em;
+}
+.slidedeck .illustration.right > div.block-image {
+  left: 50%;
+}
+.slidedeck .illustration.right > p, .slidedeck .illustration.right > ul, .slidedeck .illustration.right > .content-group {
+  margin-left: 0;
+  width: 50%;
+}
+.slidedeck .iconlist > ul > li {
+  display: grid;
+  grid-template-columns: 110px;
+}
+.slidedeck .iconlist > ul > li > img {
+  grid-column: 1;
+  grid-row: 1/span 2;
+}
+.slidedeck .iconlist > ul > li > strong {
+  grid-column: 2;
+  grid-row: 1;
+}
+.slidedeck .iconlist > ul > li > span {
+  grid-column: 2;
+  grid-row: 2;
+  color: rgb(127.5, 127.5, 127.5);
+  font-size: 80%;
+}
+.slidedeck .powerlist > ul {
+  counter-reset: powerlist-list-counter;
+}
+.slidedeck .powerlist > ul > li {
+  counter-increment: powerlist-list-counter;
+}
+.slidedeck .powerlist > ul > li::before {
+  content: "0" counter(powerlist-list-counter);
+  font-weight: bold;
+  font-size: 3rem;
+  margin-right: 0.5rem;
+  line-height: 1;
+}
+.slidedeck .glassed p, .slidedeck .glassed ul, .slidedeck .glassed pre {
+  opacity: 0.8;
+}
+.slidedeck .faded > div.block-image {
+  filter: contrast(10%) brightness(180%);
+}
+.slidedeck .blurred > div.block-image {
+  filter: blur(4px);
+}
+.slidedeck .grayed > div.block-image {
+  filter: grayscale(100%);
+}
+
+/*# sourceMappingURL=alyssum.css.map */

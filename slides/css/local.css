@@ -1,0 +1,24 @@
+.slidedeck.speaker section.active div.slide-notes {
+  font-size: 80pt;
+}
+.slidedeck.speaker section.active div.slide-notes li {
+  margin: 40px;
+}
+
+#the-workflow .snippet {
+  transition: background-color 0.3s ease-in-out;
+}
+#the-workflow:has(.partial-shown) .snippet {
+  animation: highlight 0.5s ease-in-out forwards;
+}
+
+@keyframes highlight {
+  from {
+    background-color: transparent;
+  }
+  to {
+    background-color: #ffeb3b;
+  }
+}
+
+/*# sourceMappingURL=local.css.map */
