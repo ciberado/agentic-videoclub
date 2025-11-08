@@ -68,13 +68,23 @@ User Request: "${userInput}"
 Please analyze this request and provide structured movie preferences. Consider:
 
 1. **Genre Analysis**: What primary genres does the user want? What related/similar genres might they enjoy?
-   - Example: "sci-fi" → include "Science Fiction", "Thriller", "Drama" for cerebral sci-fi
-   - Example: "action" → include "Action", "Adventure", "Thriller" 
-   - Example: "comedy" → include "Comedy", "Romantic Comedy", "Family"
+   - Example: "sci-fi" → include "Science Fiction", "Futuristic", "Space Opera", "Cyberpunk", etc.
+   - Example: "action" → include "Action", "Adventure", "Thriller", "Superhero", etc.
+   - Example: "comedy" → include "Comedy", "Romantic Comedy", "Family", "Satire", etc.
 
 2. **Exclusions**: What genres or styles should be avoided based on their preferences?
    - If they hate "cheesy stories" → exclude "Romance Comedy", "Melodrama"  
    - If they want "serious" movies → exclude "Slapstick Comedy", "Parody"
+   - If they want "intelligent" movies → exclude "Mindless Action", "Lowbrow Humor"
+   - If they want "thought-provoking" movies → exclude "Predictable Plots", "Clichéd Storylines"
+   - If they want "gritty" movies → exclude "Lighthearted Comedy", "Feel-Good Drama"
+   - If they want "family movies" → exclude "Horror", "Adult", "R-Rated"
+   - If they want "classic films" → exclude "Modern Blockbusters", "Contemporary Rom-Coms"
+   - If they want "blockbusters" → exclude "Indie Films", "Art House"
+   - If they want "light-hearted" movies → exclude "Dark", "Heavy Dramas"
+   - If they want "fast-paced" movies → exclude "Slow Burn", "Character-Driven"
+   - If they want "epic" movies → exclude "Short Films", "TV Movies"
+   - If they want "romantic" movies → exclude "Action-Heavy", "Violent"
 
 3. **Demographics**: Infer age group and viewing context from the request
    - Age mentions, maturity level, sophistication of preferences
@@ -86,14 +96,23 @@ Please analyze this request and provide structured movie preferences. Consider:
 
 5. **Thematic Preferences**: What abstract themes, moods, or storytelling styles would appeal?
    - "Intelligent plots", "Thought-provoking", "Action-packed", "Emotional", etc.
+   - Identify themes that align with their stated interests
 
 6. **Avoidance Patterns**: What themes or elements should be avoided?
-   - Based on stated dislikes: "cheesy" → "Predictable plots", "Clichéd storylines"
+   - Based on stated dislikes:"cheesy" → "Predictable plots", "Clichéd storylines"
+   - "mindless" → "Lowbrow humor", "Shallow characters"
+   - "violent" → "Gore", "Excessive action"
+   - "romantic" → "Romance-heavy", "Sappy endings"
+   - "slow" → "Slow burn", "Pacing issues"
+   - "dark" → "Heavy dramas", "Bleak themes"
+   - "complex" → "Overly complicated plots", "Confusing narratives"
 
 7. **Search Optimization**: Generate specific search terms for effective movie discovery
    - Combine preferences with modifiers: "family-friendly sci-fi", "intelligent action"
+   - Use terms that enhance search relevance on streaming platforms
 
-Be intelligent about context and inference. A 49-year-old wanting family movies suggests PG/PG-13 content, not adult-only films.
+Be intelligent about context and inference. For example, a  49-year-old wanting family movies suggests PG/PG-13 content, not adult-only films.
+On the other hand, a request for "serious sci-fi" from a 22-year-old implies more mature themes.
 
 Format your response as JSON with these exact fields:
 {
@@ -110,7 +129,7 @@ Format your response as JSON with these exact fields:
 RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
 
   try {
-    logLlmRequest('claude-3-haiku', prompt, prompt.length);
+    logLlmRequest(client.model, prompt, prompt.length);
 
     const response = await (client as any).invoke([{ role: 'user', content: prompt }]);
 
@@ -133,7 +152,7 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     }
 
     logLlmResponse(
-      'claude-3-haiku',
+      client.model,
       `Prompt enhancement analysis completed`,
       responseText.length,
       processingTime,
