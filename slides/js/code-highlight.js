@@ -29,5 +29,18 @@ document.addEventListener('slideshowLoaded', async () => {
     import('https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-yaml.min.js'),
   ]);
 
+  // Add hook to highlight content wrapped in French quotation marks
+  Prism.hooks.add('after-highlight', function (env) {
+    // Pattern to match content between French quotation marks in the highlighted HTML
+    const pattern = /«([^»]+)»/g;
+    let counter = 0;
+
+    // Replace matches with span elements in the final HTML, adding a counter
+    env.element.innerHTML = env.element.innerHTML.replace(pattern, function (match, content) {
+      counter++;
+      return `<span class="snippet snippet-${counter}">${content}</span>`;
+    });
+  });
+
   Prism.highlightAll();
 });
