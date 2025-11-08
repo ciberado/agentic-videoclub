@@ -1,0 +1,18 @@
+{
+  "name": "videoclub-slides",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "sass scss:css",
+    "watch-sass": "sass --watch scss:css",
+    "server": "http-server --cors --port 8081",
+    "dev": "concurrently --kill-others \"npm run watch-sass\" \"npm run server\""
+  },
+  "devDependencies": {
+    "concurrently": "^6.2.1",
+    "http-server": "^13.0.2"
+  },
+  "dependencies": {
+    "sass": "^1.85.1"
+  }
+}

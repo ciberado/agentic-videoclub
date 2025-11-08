@@ -1,0 +1,11 @@
+@use 'constants.scss';
+
+
+.slidedeck.speaker section.active div.slide-notes {
+	font-size: 80pt;
+
+    li {
+        margin: 40px;
+    }
+}
+

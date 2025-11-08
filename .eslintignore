@@ -18,6 +18,9 @@ packages/assessment-frontend/public/js/*.js
 
 # Other
 .DS_Store
+
+# Slides directory
+slides/
 .env
 .env.*
 !.env.example
