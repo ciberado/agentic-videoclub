@@ -31,7 +31,7 @@ async function movieWorkflow() {
     const «userPreferences» = await askUserWhatToWatch();
     const «completedCriteria» = await refineCriteriaNode(userPreferences);
 
-    const «movies» = await scrapePrimeVideoCatalogAgent();
+    const «movies» = await movieDiscoveryAgent();
     let «candidates» = [];
     let «currentBatch» = 0;
 
@@ -125,3 +125,110 @@ const response = await client.invoke(
 
 return response;
 ```
+
+## movieDiscoveryAgent
+
+### First approach: Ask the LLM to do the hard job
+
+::: Notes
+
+750.000 characters per pure html page
+
+:::
+
+### Second attempt: Extract the useful information
+
+```js
+import { convert } from 'html-to-text';
+
+function extractRelevantMovieContent(html: string): string {
+  const cleanedText = convert(html, {
+    selectors: [
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+      { selector: 'noscript', format: 'skip' }
+    ],
+  });
+  // Limit size to prevent token overuse
+  return cleanedText.substring(0, 25000);
+}
+```
+
+## enrichMovieInfoAgent
+
+### Let's get additional data
+
+### Providing hands to our agent
+
+### LLM can invoke functions, isn't it?
+
+### NO
+
+### How a tool works
+
+- Your Model is trained to understand when it needs external help
+- You provide in the prompt instructions with the available functions
+- If it happens, it returns structured data with the invocation syntax
+- Your agent application does the actual invocation
+- And then it calls again the LLM adding the results to the conversation
+
+::: Notes
+
+All SDK provide support for this pattern.
+
+:::
+
+### Making some hands for our agent
+
+```js
+function tmdbEnrichmentToolFn() {
+    this.tmdb = new TMDB(accessToken);
+    const searchResults = await this.tmdb.search.movies({
+    query: movie.title,
+    year: movie.year,
+    });
+    ...
+}
+```
+
+### Explaining what can it do with its hands
+
+```js
+const tmdbEnrichmentToolOptions = {
+  name: 'tmdb_movie_enrichment',
+  description: `Get additional movie information from The Movie Database (TMDB) 
+                when existing data is insufficient for evaluation.
+  `,
+  schema: z.object({
+    title: z.string().describe('The movie title to search for'),
+    year: z
+      .number()
+      .optional()
+      .describe('The release year of the movie (optional, helps with accuracy)'),
+  }),
+};
+```
+
+### Attaching the hands to the agent
+
+```js
+const llm = new ChatBedrockConverse({
+  model: modelId,
+  region: region,
+  temperature: 0.1,
+});
+
+const tmdbEnrichmentTool = tool(tmdbEnrichmentToolFn, tmdbEnrichmentToolOptions);
+
+const llmWithTools = llm.bindTools([tmdbEnrichmentTool]);
+```
+
+### MCPs
+
+::: Notes
+
+It is just a protocol for side-running the tools in another process.
+
+:::
+
+## evaluateMoviesAgent
