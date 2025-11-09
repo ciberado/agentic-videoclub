@@ -4,7 +4,7 @@ import { z } from 'zod';
 import logger from '../config/logger';
 import type { Movie } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
-import { globalTokenTracker } from '../utils/token-tracker';
+import { globalTokenTracker, extractTokenUsage } from '../utils/token-tracker';
 
 import type { PrimeVideoMovieDetails } from './prime-video-scraper';
 
@@ -180,7 +180,12 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       );
 
       // Track token usage for movie normalization
-      globalTokenTracker.addUsage(prompt.length, responseText.length, 'movie-normalization');
+      const tokenUsage = extractTokenUsage(response, prompt, responseText);
+      globalTokenTracker.addUsage(
+        tokenUsage.inputTokens,
+        tokenUsage.outputTokens,
+        'movie-normalization',
+      );
 
       logger.debug('🎯 Movie normalization LLM completed', {
         component: 'movie-normalization-llm',
@@ -220,9 +225,10 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
           );
 
           // Track token usage for fixed movie normalization
+          const tokenUsage = extractTokenUsage(response, prompt, responseText);
           globalTokenTracker.addUsage(
-            prompt.length,
-            responseText.length,
+            tokenUsage.inputTokens,
+            tokenUsage.outputTokens,
             'movie-normalization-fixed',
           );
 

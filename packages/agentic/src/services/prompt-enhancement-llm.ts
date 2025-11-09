@@ -4,7 +4,7 @@ import { z } from 'zod';
 import logger from '../config/logger';
 import type { UserCriteria } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
-import { globalTokenTracker } from '../utils/token-tracker';
+import { globalTokenTracker, extractTokenUsage } from '../utils/token-tracker';
 
 /**
  * Prompt Enhancement LLM Service
@@ -140,7 +140,12 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     );
 
     // Track token usage for prompt enhancement
-    globalTokenTracker.addUsage(prompt.length, responseText.length, 'prompt-enhancement');
+    const tokenUsage = extractTokenUsage(response, prompt, responseText);
+    globalTokenTracker.addUsage(
+      tokenUsage.inputTokens,
+      tokenUsage.outputTokens,
+      'prompt-enhancement',
+    );
 
     logger.debug('🎯 Prompt enhancement LLM analysis completed', {
       component: 'prompt-enhancement-llm',

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import logger from '../config/logger';
 import type { Movie, UserCriteria, MovieEvaluation } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
-import { globalTokenTracker } from '../utils/token-tracker';
+import { globalTokenTracker, extractTokenUsage } from '../utils/token-tracker';
 
 import { tmdbEnrichmentService } from './tmdb-enrichment';
 import { tmdbEnrichmentTool } from './tmdb-enrichment-tool';
@@ -376,7 +376,12 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     );
 
     // Track token usage for this evaluation
-    globalTokenTracker.addUsage(prompt.length, responseText.length, 'movie-evaluation');
+    const tokenUsage = extractTokenUsage(response, prompt, responseText);
+    globalTokenTracker.addUsage(
+      tokenUsage.inputTokens,
+      tokenUsage.outputTokens,
+      'movie-evaluation',
+    );
 
     logger.debug('🎯 Movie evaluation LLM completed', {
       component: 'movie-evaluation-llm',
