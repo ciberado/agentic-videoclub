@@ -99,35 +99,11 @@ Please extract and normalize this into structured movie information:
    - Action, Adventure, Animation, Biography, Comedy, Crime, Documentary
    - Drama, Family, Fantasy, History, Horror, Music, Musical, Mystery
    - Romance, Science Fiction, Thriller, War, Western
-4. **Rating**: Estimate a rating out of 10 based on available info (use 7.0 if unknown)
+4. **Rating**: Estimate a rating out of 10 based on available info
 5. **Director**: Extract director name from HTML content or use "Unknown Director"
 6. **Description**: Clean plot summary or description from the content
 7. **Family Rating**: Estimate content rating (G, PG, PG-13, R, NR)
 8. **Themes**: Extract thematic elements like "Space exploration", "Coming of age", etc.
-
-**CRITICAL ANALYSIS INSTRUCTIONS - Prime Video Specific:**
-
-1. **JSON-LD PRIORITY**: Look for json-ld-movie-data or json-ld-raw sections first - these contain the most accurate movie information
-   - Parse JSON-LD with @type: "Movie" for title, name, URL, etc.
-   - Look for ItemList structures containing movie arrays
-   - Extract any movie objects from nested graph structures
-
-2. **Context Data**: Use page-context and store-data sections for additional metadata that might contain movie details
-
-3. **Year Extraction**: 
-   - Check year-candidates section for potential release years
-   - Cross-reference with JSON-LD data if available
-   - Choose the most reasonable year (not session IDs or random numbers)
-
-4. **Title Extraction**: 
-   - Prefer JSON-LD movie names over HTML title elements
-   - Clean titles by removing parenthetical years: "Movie (2024)" becomes "Movie"
-
-5. **Automation Elements**: Check automation-* sections for Prime Video's data-automation-id content
-
-6. **Meta Tags**: Use meta-tags section for Open Graph and Twitter Card data as fallback
-
-7. **Fallback Strategy**: If JSON-LD is missing or incomplete, extract what you can from other sections
 
 Guidelines:
 - Use standard genre names from the list above
@@ -158,7 +134,7 @@ Format your response as JSON with these exact fields:
 RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
 
   try {
-    logLlmRequest('claude-3-haiku', prompt, prompt.length);
+    logLlmRequest(client.model, prompt, prompt.length);
 
     const response = await (client as any).invoke([{ role: 'user', content: prompt }]);
 
@@ -173,7 +149,7 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       const validatedResponse = MovieSchema.parse(parsedResponse);
 
       logLlmResponse(
-        'claude-3-haiku',
+        client.model,
         `Movie normalization completed for "${movieDetails.title}"`,
         responseText.length,
         processingTime,
