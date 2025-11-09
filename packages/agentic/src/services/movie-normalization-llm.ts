@@ -134,7 +134,7 @@ Format your response as JSON with these exact fields:
 RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
 
   try {
-    logLlmRequest(client.model, prompt, prompt.length);
+    logLlmRequest(client.model, prompt.substring(0, 20), prompt.length);
 
     const response = await (client as any).invoke([{ role: 'user', content: prompt }]);
 

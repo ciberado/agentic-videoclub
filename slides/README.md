@@ -29,7 +29,7 @@
 // Workflow for movie recommendation
 async function movieWorkflow() {
     const «userPreferences» = await askUserWhatToWatch();
-    const «completedCriteria» = await refineCriteriaNode(userPreferences);
+    const «refinedCriteria» = await refineCriteriaNode(userPreferences);
 
     const «movies» = await movieDiscoveryAgent();
     let «candidates» = [];
@@ -37,8 +37,7 @@ async function movieWorkflow() {
 
     do {
         const selectedBatch = await selectNextMovieBatch(movies, currentBatch);
-        const enriched = await enrichMovieInfoAgent(selectedBatch);
-        const evaluated = await evaluateMoviesAgent(enriched, completedCriteria);
+        const evaluated = await evaluateMoviesAgent(selectedBatch, refinedCriteria);
         candidates.push(...evaluated);
         currentBatch++;
     } while (candidates.length < MINIMUM_CANDIDATES);
@@ -154,9 +153,9 @@ function extractRelevantMovieContent(html: string): string {
 }
 ```
 
-## enrichMovieInfoAgent
+## evaluateMoviesAgent
 
-### Let's get additional data
+### We may need additional data
 
 ### Providing hands to our agent
 
@@ -184,8 +183,8 @@ All SDK provide support for this pattern.
 function tmdbEnrichmentToolFn() {
     this.tmdb = new TMDB(accessToken);
     const searchResults = await this.tmdb.search.movies({
-    query: movie.title,
-    year: movie.year,
+        query: movie.title,
+        year: movie.year,
     });
     ...
 }
@@ -196,9 +195,8 @@ function tmdbEnrichmentToolFn() {
 ```js
 const tmdbEnrichmentToolOptions = {
   name: 'tmdb_movie_enrichment',
-  description: `Get additional movie information from The Movie Database (TMDB) 
-                when existing data is insufficient for evaluation.
-  `,
+  description: `Get additional movie information from The Movie 
+    Database (TMDB) when existing data is insufficient for evaluation.`,
   schema: z.object({
     title: z.string().describe('The movie title to search for'),
     year: z
@@ -209,18 +207,27 @@ const tmdbEnrichmentToolOptions = {
 };
 ```
 
+###
+
 ### Attaching the hands to the agent
 
 ```js
-const llm = new ChatBedrockConverse({
-  model: modelId,
-  region: region,
-  temperature: 0.1,
-});
-
 const tmdbEnrichmentTool = tool(tmdbEnrichmentToolFn, tmdbEnrichmentToolOptions);
-
-const llmWithTools = llm.bindTools([tmdbEnrichmentTool]);
+const agents = createAgent({
+  model: new ChatBedrockConverse({
+    model: modelId,
+    region: process.env.AWS_REGION || 'us-east-1',
+    temperature: 0.2,
+  }),
+  tools: [tmdbEnrichmentTool],
+});
+const input = `... ... 
+    Use the TMDB enrichment tool if you need additional information, 
+    then provide your evaluation as JSON. ... ... 
+`;
+const response = await agent.invoke({
+  messages: [{ role: 'user', content: input }],
+});
 ```
 
 ### MCPs
