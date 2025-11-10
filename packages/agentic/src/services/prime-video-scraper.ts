@@ -228,7 +228,7 @@ function extractRelevantMovieContent(html: string): string {
 export function extractRelatedMovies(html: string): PrimeVideoMovieLink[] {
   const $ = cheerio.load(html);
   const relatedMovies: PrimeVideoMovieLink[] = [];
-  const MAX_RELATED_PER_PAGE = 20;
+  const MAX_RELATED_PER_PAGE = 100;
 
   // Debug: Check what carousel-related elements exist
   const allSections = $('section');
@@ -332,36 +332,6 @@ export function extractRelatedMovies(html: string): PrimeVideoMovieLink[] {
     });
   });
 
-  // Fallback: If no carousel movies found, try the old method as backup
-  if (relatedMovies.length === 0) {
-    logger.warn('⚠️ No movies found in carousels, trying fallback method', {
-      component: 'prime-video-scraper',
-    });
-
-    $('article[data-card-title] a').each((_, element) => {
-      if (relatedMovies.length >= MAX_RELATED_PER_PAGE) {
-        return false;
-      }
-      const $link = $(element);
-      const title =
-        $link.attr('data-card-title') ||
-        $link.find('[data-card-title]').attr('data-card-title') ||
-        $link.text().trim();
-      const relativeUrl = $link.attr('href');
-
-      if (title && relativeUrl) {
-        const fullUrl = relativeUrl.startsWith('http')
-          ? relativeUrl
-          : `https://www.primevideo.com${relativeUrl}`;
-
-        relatedMovies.push({
-          title: title.trim(),
-          url: fullUrl,
-        });
-      }
-    });
-  }
-
   // Remove duplicates and limit to reasonable number for recursive discovery
   const uniqueMovies = relatedMovies
     .filter((movie, index, self) => index === self.findIndex((m) => m.url === movie.url))
@@ -370,7 +340,7 @@ export function extractRelatedMovies(html: string): PrimeVideoMovieLink[] {
   logger.debug('🔗 Extracted related movies from detail page', {
     component: 'prime-video-scraper',
     count: uniqueMovies.length,
-    movies: uniqueMovies.slice(0, 5).map((m) => m.title),
+    movies: uniqueMovies.map((m) => m.title),
   });
 
   return uniqueMovies;

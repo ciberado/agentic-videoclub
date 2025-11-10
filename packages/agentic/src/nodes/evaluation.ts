@@ -54,6 +54,7 @@ export async function intelligentEvaluationNode(
     targetGenres: state.enhancedUserCriteria?.enhancedGenres,
     familyFriendly: state.enhancedUserCriteria?.familyFriendly,
     evaluationThemes: state.enhancedUserCriteria?.preferredThemes,
+    batchTitles: state.discoveredMoviesBatch.map((m) => m.title),
   });
 
   // Use real LLM evaluation of the movie batch
