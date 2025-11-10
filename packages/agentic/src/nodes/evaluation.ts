@@ -9,60 +9,36 @@ import {
 } from '../utils/logging';
 
 /**
- * Intelligent Evaluation Node - React Agent-Powered Movie Assessment & Matching
+ * Evaluates movies using an intelligent agent powered by LLMs
  *
- * PURPOSE:
- * Evaluates batches of discovered movies using React Agent architecture for autonomous
- * movie analysis. Combines Claude 3.5 Sonnet reasoning with intelligent TMDB data
- * enrichment for comprehensive multi-dimensional confidence scoring (0.0-1.0).
+ * This node processes batches of discovered movies using Claude 3.5 Sonnet to:
+ * - Analyze each movie against user criteria
+ * - Enrich movie data from TMDB when needed
+ * - Score movies based on genre, themes, and content
+ * - Build up a collection of high-quality matches
  *
- * REACT AGENT IMPLEMENTATION:
- * - Model: Claude 3.5 Sonnet (superior reasoning + autonomous tool usage)
- * - Architecture: React Agent pattern (Reasoning + Acting cycle)
- * - Auto-Enrichment: Intelligent TMDB data enhancement when needed
- * - Processing: Parallel batch evaluation using Promise.allSettled for performance
- * - Token Tracking: Integrated consumption monitoring across all operations
- * - Quality Gate: Configurable thresholds with intelligent candidate accumulation
- * - Multi-dimensional Analysis: Genre alignment, theme matching, age appropriateness,
- *   quality indicators, and cultural relevance scoring
+ * Key features:
+ * - Parallel batch processing for performance
+ * - Quality gates to ensure good matches:
+ *   - Minimum confidence score of 0.75
+ *   - At least 3 high-confidence matches needed
+ * - Family-friendly content validation
+ * - Token usage monitoring
  *
- * REACT AGENT PROCESSING FLOW:
- * 1. Receives discoveredMoviesBatch and enhancedUserCriteria from workflow state
- * 2. React Agent analyzes each movie and autonomously decides tool usage
- * 3. Auto-enriches movies with TMDB data when quality/completeness is insufficient
- * 4. Executes parallel LLM evaluation with enriched data using evaluateMoviesBatch()
- * 5. Calculates comprehensive confidence scores with detailed reasoning
- * 6. Applies quality gate thresholds (≥0.75 high confidence, ≥3 candidates minimum)
- * 7. Accumulates acceptable candidates (≥0.75 confidence) in workflow state
- * 8. Updates pagination offset for next batch iteration
+ * The node:
+ * 1. Takes in discovered movies and user preferences
+ * 2. Evaluates each movie with the LLM
+ * 3. Tracks quality metrics and confidence scores
+ * 4. Accumulates good matches for recommendations
+ * 5. Updates the batch offset for the next round
  *
- * QUALITY GATE LOGIC:
- * - High Confidence Threshold: ≥0.75 confidence score (optimized for quality)
- * - Quality Gate Minimum: ≥3 high-confidence matches required for completion
- * - Family Appropriateness: Validates family-friendly requirements when specified
- * - Batch Processing: Evaluates 10 movies per batch for optimal LLM performance
- * - Adaptive Termination: Continues until minimum candidates found or movies exhausted
- *
- * REACT AGENT TOKEN TRACKING:
- * - Monitors input/output tokens for all Claude 3.5 Sonnet + tool operations
- * - Tracks additional token usage from TMDB enrichment tool calls
- * - Provides cost analysis and performance optimization insights
- * - Typical usage: ~3,000-4,000 tokens per batch + tool call overhead
- * - Production validated: Successfully handles 10-movie batches with tool usage
- *
- * STATE UPDATES:
- * - evaluatedMoviesBatch: Complete evaluation results with confidence scores and reasoning
- * - allAcceptableCandidates: Accumulates high-confidence matches across all batches
- * - qualityGatePassedSuccessfully: Boolean indicating if batch meets quality standards
- * - highConfidenceMatchCount: Count of movies scoring ≥0.75 confidence
- * - movieBatchOffset: Updated pagination offset for next batch iteration
- *
- * PERFORMANCE MONITORING:
- * - Structured logging with comprehensive node execution metrics
- * - Evaluation batch statistics including success rates and average scores
- * - Performance tracking with detailed timing and token consumption data
- * - Top-performing movie identification for quality assurance and debugging
+ * State updates include:
+ * - Evaluation results with confidence scores
+ * - Collection of acceptable candidates
+ * - Quality gate status
+ * - Match counts and batch position
  */
+
 export async function intelligentEvaluationNode(
   state: typeof VideoRecommendationAgentState.State,
 ): Promise<Partial<typeof VideoRecommendationAgentState.State>> {

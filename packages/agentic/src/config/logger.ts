@@ -84,7 +84,7 @@ if (!fs.existsSync(logsDir)) {
 
 // Generate unique filename for this execution
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
-const executionLogFile = path.join(logsDir, `execution_${timestamp}.log`);
+const executionLogFile = path.join(logsDir, `execution_${timestamp}.jsonl`);
 
 // Create console transport with increased listener limit
 // Note: We reuse the same transport instance to avoid creating multiple console listeners
@@ -125,13 +125,13 @@ const logger = winston.createLogger({
     ...(process.env.NODE_ENV === 'production'
       ? [
           new winston.transports.File({
-            filename: path.join(logsDir, 'error.log'),
+            filename: path.join(logsDir, 'error.jsonl'),
             level: 'error',
             maxsize: 5242880, // 5MB
             maxFiles: 5,
           }),
           new winston.transports.File({
-            filename: path.join(logsDir, 'combined.log'),
+            filename: path.join(logsDir, 'combined.jsonl'),
             maxsize: 5242880, // 5MB
             maxFiles: 5,
           }),
@@ -143,14 +143,14 @@ const logger = winston.createLogger({
   exceptionHandlers: [
     consoleTransport,
     ...(process.env.NODE_ENV === 'production'
-      ? [new winston.transports.File({ filename: path.join(logsDir, 'exceptions.log') })]
+      ? [new winston.transports.File({ filename: path.join(logsDir, 'exceptions.jsonl') })]
       : []),
   ],
 
   rejectionHandlers: [
     consoleTransport,
     ...(process.env.NODE_ENV === 'production'
-      ? [new winston.transports.File({ filename: path.join(logsDir, 'rejections.log') })]
+      ? [new winston.transports.File({ filename: path.join(logsDir, 'rejections.jsonl') })]
       : []),
   ],
 });
