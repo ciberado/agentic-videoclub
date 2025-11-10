@@ -90,15 +90,15 @@ export function shouldContinueSearching(state: typeof VideoRecommendationAgentSt
 
   // If we have more movies to evaluate in the current discovered batch, continue evaluation
   if (currentOffset < allMovies.length) {
-    logger.info('🔄 Routing to intelligent_evaluation_node - Next batch available', {
+    logger.info('🔄 Routing to movie_discovery_and_data_fetching_node - Prepare next batch', {
       currentOffset,
       batchSize,
       totalMovies: allMovies.length,
       remainingMovies: allMovies.length - currentOffset,
       acceptableCandidates: allCandidates.length,
-      reason: 'next_batch_evaluation',
+      reason: 'next_batch_preparation',
     });
-    return 'intelligent_evaluation_node';
+    return 'movie_discovery_and_data_fetching_node';
   }
 
   // Check if we can do recursive discovery before finalizing
