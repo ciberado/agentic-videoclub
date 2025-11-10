@@ -4,7 +4,8 @@ import { normalizeMoviesBatch } from '../services/movie-normalization-llm';
 import {
   extractPrimeVideoMovieLinks,
   fetchPrimeVideoMoviesBatch,
-  extractRelatedMovies,
+  fetchPrimeVideoMovieDetails,
+  type PrimeVideoMovieDetails,
 } from '../services/prime-video-scraper';
 import type { VideoRecommendationAgentState } from '../state/definition';
 import type { Movie, MovieLink } from '../types';
@@ -16,42 +17,32 @@ import {
 } from '../utils/state-helpers';
 
 /**
- * Movie Discovery & Data Fetching Node - Production Web Scraping with Intelligent Caching
+ * Movie Discovery & Data Fetching Node
  *
- * PURPOSE:
- * Discovers and fetches movie data from Prime Video through real-time web scraping,
- * with intelligent SQLite caching for performance optimization. Processes movies in
- * paginated batches to support the workflow's batch evaluation pattern.
+ * This node discovers and fetches movie data from Prime Video through web scraping,
+ * using SQLite caching to avoid re-scraping the same movies. It processes movies
+ * in batches to work with the evaluation workflow.
  *
- * CURRENT IMPLEMENTATION:
- * - Web Scraping: Live Prime Video scraping using Cheerio HTML parser
- * - Caching Strategy: SQLite database with better-sqlite3 for 100% cache hit performance
- * - Batch Processing: Configurable batch sizes (default: 10 movies) with offset pagination
- * - LLM Normalization: Claude 3 Haiku-powered metadata standardization and theme extraction
- * - Token Tracking: Integrated token consumption monitoring for normalization operations
- * - Resource Guardrails: Maximum limits to prevent runaway processing
+ * How it works:
+ * - First run: Scrapes Prime Video search results to get initial movie links
+ * - Subsequent runs: Processes queued movie links from previous discoveries
+ * - Always checks cache first to avoid unnecessary scraping
+ * - Scrapes missing movies and normalizes their data using Claude 3 Haiku
+ * - Extracts related movie links from each processed movie (both cached and new)
+ * - Returns a batch of movies for the evaluation node to process
  *
- * CORE PROCESSING FLOW:
- * 1. Extract movie links from Prime Video search results or queued links
- * 2. Check SQLite cache for existing movie data (cache hit optimization)
- * 3. Scrape missing movies from Prime Video detail pages
- * 4. Normalize scraped data using Claude 3 Haiku for consistency
- * 5. Cache normalized movies in SQLite for future requests
- * 6. Prepare paginated batch for evaluation node
- * 7. Queue related movie links for recursive discovery (when enabled)
+ * Key features:
+ * - Smart caching: Uses SQLite to store normalized movie data
+ * - Batch processing: Returns configurable batches (default 10 movies) with pagination
+ * - Related movie discovery: Finds and queues related movies for future processing
+ * - Resource limits: Prevents runaway processing with guardrails
+ * - Mixed processing: Handles both cached and newly scraped movies in the same batch
  *
- * STATE MANAGEMENT:
- * - processedMovies: All normalized movie data accumulated across batches
- * - movieLinksQueue: Pending movie links for future processing
- * - discoveredMoviesBatch: Current batch prepared for evaluation
- * - movieBatchOffset: Pagination offset for batch processing
- * - Discovery depth tracking for recursive movie discovery
- *
- * PERFORMANCE OPTIMIZATIONS:
- * - SQLite caching eliminates redundant web scraping
- * - Batch processing prevents overwhelming downstream nodes
- * - Rate limiting and proper headers for ethical scraping
- * - Structured error handling with fallback strategies
+ * The node maintains several queues and collections:
+ * - processedMovies: All discovered movies across all batches
+ * - movieLinksQueue: Pending movie links waiting to be processed
+ * - discoveredMoviesBatch: Current batch ready for evaluation
+ * - Pagination tracking for batch management
  */
 export async function movieDiscoveryAndDataFetchingNode(
   state: typeof VideoRecommendationAgentState.State,
@@ -118,7 +109,12 @@ export async function movieDiscoveryAndDataFetchingNode(
   // Need to discover more movies
   let updatedProcessedMovies = state.processedMovies || [];
   let updatedMovieLinksQueue = [...(state.movieLinksQueue || [])];
-  const updatedProcessedUrls = new Set(state.processedUrls || []);
+  // Normalize URLs in the processed set to ensure consistent comparison
+  const updatedProcessedUrls = new Set(
+    Array.from(state.processedUrls || []).map((url) =>
+      url.startsWith('http') ? url : `https://www.primevideo.com${url}`,
+    ),
+  );
 
   // First time discovery - get initial movie links
   if (allMovies.length === 0) {
@@ -176,11 +172,16 @@ export async function movieDiscoveryAndDataFetchingNode(
         // Fetch and normalize uncached movies
         let newMovies: Movie[] = [];
         let processedUrls: string[] = [];
+        let allMovieDetails: PrimeVideoMovieDetails[] = [];
+        let relatedMoviesExtracted = 0;
+        let totalRelatedMoviesQueued = 0;
+        const relatedMovieExtractionStartTime = Date.now();
 
         if (uncachedLinks.length > 0) {
           const movieDetails = await fetchPrimeVideoMoviesBatch(uncachedLinks);
           newMovies = await normalizeMoviesBatch(movieDetails);
           processedUrls = movieDetails.map((detail) => detail.url).filter(Boolean);
+          allMovieDetails = movieDetails;
 
           // Cache new movies
           if (newMovies.length > 0) {
@@ -194,25 +195,109 @@ export async function movieDiscoveryAndDataFetchingNode(
             await movieCache.setMovies(cacheData);
           }
 
-          // Extract related movies for future processing
-          movieDetails.forEach((detail) => {
-            if (detail.rawHtml && updatedMovieLinksQueue.length < MAX_QUEUE_SIZE) {
-              const relatedMovies = extractRelatedMovies(detail.rawHtml);
-              relatedMovies.forEach((relatedMovie) => {
-                if (
-                  !updatedProcessedUrls.has(relatedMovie.url) &&
-                  updatedMovieLinksQueue.length < MAX_QUEUE_SIZE
-                ) {
+          // Extract related movies from fetched movie details
+          // These were already extracted during the fetchPrimeVideoMoviesBatch call
+          allMovieDetails.forEach((detail) => {
+            if (detail.relatedMovies && updatedMovieLinksQueue.length < MAX_QUEUE_SIZE) {
+              detail.relatedMovies.forEach((relatedMovie) => {
+                // Normalize URL
+                const normalizedUrl = relatedMovie.url.startsWith('http')
+                  ? relatedMovie.url
+                  : `https://www.primevideo.com${relatedMovie.url}`;
+
+                const isAlreadyProcessed = updatedProcessedUrls.has(normalizedUrl);
+                const isQueueFull = updatedMovieLinksQueue.length >= MAX_QUEUE_SIZE;
+                const isAlreadyQueued = updatedMovieLinksQueue.some(
+                  (queuedLink) => queuedLink.url === normalizedUrl,
+                );
+
+                if (!isAlreadyProcessed && !isQueueFull && !isAlreadyQueued) {
                   updatedMovieLinksQueue.push({
-                    ...relatedMovie,
+                    title: relatedMovie.title,
+                    url: normalizedUrl,
                     source: 'related_movie',
                     addedAt: new Date(),
+                  });
+                  relatedMoviesExtracted++;
+                  totalRelatedMoviesQueued++;
+
+                  logger.debug('🔗 Queued related movie', {
+                    nodeId,
+                    sourceMovie: detail.title,
+                    relatedMovie: relatedMovie.title,
+                    url: normalizedUrl,
                   });
                 }
               });
             }
           });
         }
+
+        // For cached movies, we need to fetch their details to get related movies
+        // since cached data doesn't include the related movies field
+        for (const cachedUrl of cachedUrls) {
+          if (updatedMovieLinksQueue.length >= MAX_QUEUE_SIZE) break;
+
+          try {
+            const cachedLink = linksToProcess.find((link) => link.url === cachedUrl);
+            if (!cachedLink) continue;
+
+            logger.debug('🔍 Fetching related movies for cached movie', {
+              nodeId,
+              title: cachedLink.title,
+              url: cachedUrl.substring(0, 50) + '...',
+            });
+
+            const movieDetail = await fetchPrimeVideoMovieDetails(cachedLink);
+
+            if (movieDetail.relatedMovies) {
+              movieDetail.relatedMovies.forEach((relatedMovie) => {
+                const normalizedUrl = relatedMovie.url.startsWith('http')
+                  ? relatedMovie.url
+                  : `https://www.primevideo.com${relatedMovie.url}`;
+
+                const isAlreadyProcessed = updatedProcessedUrls.has(normalizedUrl);
+                const isQueueFull = updatedMovieLinksQueue.length >= MAX_QUEUE_SIZE;
+                const isAlreadyQueued = updatedMovieLinksQueue.some(
+                  (queuedLink) => queuedLink.url === normalizedUrl,
+                );
+
+                if (!isAlreadyProcessed && !isQueueFull && !isAlreadyQueued) {
+                  updatedMovieLinksQueue.push({
+                    title: relatedMovie.title,
+                    url: normalizedUrl,
+                    source: 'related_movie',
+                    addedAt: new Date(),
+                  });
+                  relatedMoviesExtracted++;
+                  totalRelatedMoviesQueued++;
+
+                  logger.debug('🔗 Queued related movie from cached source', {
+                    nodeId,
+                    sourceMovie: cachedLink.title,
+                    relatedMovie: relatedMovie.title,
+                    url: normalizedUrl,
+                  });
+                }
+              });
+            }
+          } catch (error) {
+            logger.warn('⚠️ Failed to extract related movies for cached movie', {
+              nodeId,
+              url: cachedUrl,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        const relatedExtractionTime = Date.now() - relatedMovieExtractionStartTime;
+        logger.info('🔗 Related movie extraction completed', {
+          nodeId,
+          processedMovies: linksToProcess.length,
+          relatedMoviesFound: relatedMoviesExtracted,
+          relatedMoviesQueued: totalRelatedMoviesQueued,
+          executionTime: `${relatedExtractionTime}ms`,
+        });
 
         // Combine cached and new movies
         const allNewMovies = [...Object.values(cachedMovies), ...newMovies];
@@ -226,11 +311,18 @@ export async function movieDiscoveryAndDataFetchingNode(
           'initial_discovery',
         );
 
-        // Update processed URLs
-        allProcessedUrls.forEach((url) => updatedProcessedUrls.add(url));
+        // Update processed URLs with normalization
+        allProcessedUrls.forEach((url) => {
+          const normalizedUrl = url.startsWith('http') ? url : `https://www.primevideo.com${url}`;
+          updatedProcessedUrls.add(normalizedUrl);
+        });
 
         // Remove processed links from queue
-        const processedUrlSet = new Set(allProcessedUrls);
+        const processedUrlSet = new Set(
+          allProcessedUrls.map((url) =>
+            url.startsWith('http') ? url : `https://www.primevideo.com${url}`,
+          ),
+        );
         updatedMovieLinksQueue = updatedMovieLinksQueue.filter(
           (link) => !processedUrlSet.has(link.url),
         );
