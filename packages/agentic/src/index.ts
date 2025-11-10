@@ -1,6 +1,8 @@
 // Load environment variables from .env file
 import 'dotenv/config';
 
+import { EventEmitter } from 'events';
+
 import { StateGraph, START } from '@langchain/langgraph';
 
 import logger from './config/logger';
@@ -31,9 +33,26 @@ const compiledVideoRecommendationAgent = videoRecommendationWorkflow.compile();
 
 // ===== MAIN EXECUTION =====
 
-async function runVideoRecommendationAgent(userInput: string): Promise<void> {
+async function runVideoRecommendationAgent(
+  userInput: string,
+  logEventEmitter?: EventEmitter,
+): Promise<MovieEvaluation[]> {
   // Reset token tracker at the start of each run
   globalTokenTracker.reset();
+
+  // Create a logger wrapper that emits events for real-time streaming
+  if (logEventEmitter) {
+    // Listen to winston's log events instead of overriding methods
+    logger.on('logged', (info) => {
+      logEventEmitter.emit('log_event', {
+        timestamp: info.timestamp || new Date().toISOString(),
+        level: info.level,
+        message: info.message,
+        nodeId: info.nodeId,
+        details: info,
+      });
+    });
+  }
 
   logger.info('🚀 Video Recommendation Agent starting up', {
     version: '0.0.1',
@@ -113,6 +132,9 @@ async function runVideoRecommendationAgent(userInput: string): Promise<void> {
     console.log(`Input characters: ${tokenUsage.inputTokens.toLocaleString()}`);
     console.log(`Output characters: ${tokenUsage.outputTokens.toLocaleString()}`);
     console.log('');
+
+    // Return the final recommendations
+    return finalState.finalRecommendations;
   } catch (error) {
     logger.error('💥 Video Recommendation Agent failed', {
       error: error instanceof Error ? error.message : String(error),

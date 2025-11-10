@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events';
 
+import { runVideoRecommendationAgent } from '@videoclub/agentic';
+
 import { UserRequirements, Movie, WorkflowStatus } from '../../shared/types';
 
 // Import the agentic package - this will need to be adjusted based on the actual export
@@ -21,39 +23,33 @@ export class AgentInvoker extends EventEmitter {
     const workflowId = `workflow_${Date.now()}`;
     this.currentWorkflow = workflowId;
 
-    // Initialize workflow status
+    // Initialize workflow status with proper nodes
     this.workflowStatus = {
       id: workflowId,
       status: 'running',
       nodes: [
         {
-          id: 'init',
-          name: 'Initialization',
-          description: 'Setting up workflow',
+          id: 'prompt_enhancement',
+          name: 'Prompt Enhancement',
+          description: 'Analyzing and enhancing user requirements',
           status: 'pending',
         },
         {
-          id: 'discovery',
+          id: 'movie_discovery',
           name: 'Movie Discovery',
-          description: 'Finding movies',
+          description: 'Discovering and fetching movie data',
           status: 'pending',
         },
         {
-          id: 'enrichment',
-          name: 'Data Enrichment',
-          description: 'Getting movie details',
+          id: 'movie_evaluation',
+          name: 'Movie Evaluation',
+          description: 'Evaluating movies against user criteria',
           status: 'pending',
         },
         {
-          id: 'evaluation',
-          name: 'Evaluation',
-          description: 'Analyzing with LLM',
-          status: 'pending',
-        },
-        {
-          id: 'recommendation',
-          name: 'Recommendation',
-          description: 'Generating final results',
+          id: 'final_selection',
+          name: 'Final Selection',
+          description: 'Selecting and ranking final recommendations',
           status: 'pending',
         },
       ],
@@ -64,8 +60,18 @@ export class AgentInvoker extends EventEmitter {
     this.emit('workflow_started', { workflowId });
 
     try {
-      // Start the workflow process
-      this.simulateWorkflow(requirements);
+      // Create an EventEmitter to receive log events from the agentic package
+      const logEmitter = new EventEmitter();
+
+      // Forward log events from agentic package and track progress
+      logEmitter.on('log_event', (logEvent) => {
+        this.emit('log_event', logEvent);
+        this.updateProgress(logEvent);
+      });
+
+      // Start the real agentic workflow
+      this.runAgenticWorkflow(requirements, logEmitter);
+
       return workflowId;
     } catch (error) {
       this.currentWorkflow = null;
@@ -88,82 +94,144 @@ export class AgentInvoker extends EventEmitter {
     return this.workflowStatus;
   }
 
-  // TODO: Replace with actual agentic package integration
-  private async simulateWorkflow(_requirements: UserRequirements): Promise<void> {
+  // Update progress based on log events
+  private updateProgress(logEvent: { nodeId?: string; message: string; level: string }): void {
     if (!this.workflowStatus) return;
 
-    const nodes = this.workflowStatus.nodes;
+    const { message } = logEvent;
+    console.log('🔍 Checking log message for progress:', message);
 
-    for (let i = 0; i < nodes.length; i++) {
-      if (this.workflowStatus?.status !== 'running') break;
-
-      const node = nodes[i];
-
-      // Activate node
-      node.status = 'active';
-      this.workflowStatus.currentNode = node.id;
-      this.emit('node_activated', { nodeId: node.id, nodeName: node.name });
-
-      // Simulate work with progress updates
-      for (let progress = 0; progress <= 100; progress += 20) {
-        if (this.workflowStatus?.status !== 'running') break;
-
-        node.progress = progress;
-        this.workflowStatus.progress = (i * 100 + progress) / nodes.length;
-        this.emit('progress_update', { nodeId: node.id, progress });
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-
-      // Complete node
-      if (this.workflowStatus?.status === 'running') {
-        node.status = 'completed';
-        this.emit('node_completed', { nodeId: node.id, nodeName: node.name });
-
-        // Simulate finding movies in discovery phase
-        if (node.id === 'discovery') {
-          const mockMovies: Movie[] = [
-            { id: '1', title: 'The Matrix', year: 1999, rating: 8.7 },
-            { id: '2', title: 'Inception', year: 2010, rating: 8.8 },
-            { id: '3', title: 'Interstellar', year: 2014, rating: 8.6 },
-          ];
-
-          for (const movie of mockMovies) {
-            this.emit('movie_found', { movie });
-            await new Promise((resolve) => setTimeout(resolve, 200));
-          }
-        }
-      }
+    // Map log events to workflow nodes using actual log messages from the agentic package
+    // Prompt Enhancement Phase
+    if (
+      message.includes('🎯 Starting prompt enhancement analysis') ||
+      message.includes('Starting prompt enhancement')
+    ) {
+      this.updateNodeStatus('prompt_enhancement', 'active');
+      this.updateOverallProgress(25);
+    } else if (
+      message.includes('✨ Prompt enhancement completed successfully') ||
+      message.includes('enhanced user criteria')
+    ) {
+      this.updateNodeStatus('prompt_enhancement', 'completed');
     }
 
-    // Complete workflow
-    if (this.workflowStatus?.status === 'running') {
-      this.workflowStatus.status = 'completed';
-      this.workflowStatus.endTime = new Date();
-      this.workflowStatus.progress = 100;
+    // Movie Discovery Phase
+    else if (
+      message.includes('movie discovery') ||
+      message.includes('scraping') ||
+      message.includes('Routing to movie_discovery')
+    ) {
+      this.updateNodeStatus('movie_discovery', 'active');
+      this.updateOverallProgress(50);
+    }
 
-      const mockRecommendations: Movie[] = [
-        {
-          id: '1',
-          title: 'The Matrix',
-          year: 1999,
-          rating: 8.7,
-          overview: 'A computer programmer discovers reality is a simulation.',
-          genre: ['Action', 'Sci-Fi'],
-        },
-        {
-          id: '2',
-          title: 'Inception',
-          year: 2010,
-          rating: 8.8,
-          overview: 'A thief enters dreams to plant ideas.',
-          genre: ['Action', 'Sci-Fi', 'Thriller'],
-        },
-      ];
+    // Movie Evaluation Phase
+    else if (
+      message.includes('🧠 Starting intelligent batch evaluation') ||
+      message.includes('evaluating movies')
+    ) {
+      this.updateNodeStatus('movie_evaluation', 'active');
+      this.updateOverallProgress(75);
+    } else if (message.includes('📊 Intelligent evaluation completed')) {
+      this.updateNodeStatus('movie_evaluation', 'completed');
+    }
 
-      this.workflowStatus.results = mockRecommendations;
-      this.emit('workflow_complete', { recommendations: mockRecommendations });
+    // Final Selection Phase
+    else if (
+      message.includes('🎉 Video Recommendation Agent completed successfully') ||
+      message.includes('✅ Routing to END')
+    ) {
+      this.updateNodeStatus('final_selection', 'active');
+      this.updateOverallProgress(90);
+    }
+  } // Helper method to update node status
+  private updateNodeStatus(
+    nodeId: string,
+    status: 'pending' | 'active' | 'completed' | 'error',
+  ): void {
+    if (!this.workflowStatus) return;
 
+    const node = this.workflowStatus.nodes.find((n) => n.id === nodeId);
+    if (node && node.status !== 'completed') {
+      node.status = status;
+      this.emit('node_activated', { nodeId, nodeName: node.name });
+    }
+  }
+
+  // Helper method to update overall progress
+  private updateOverallProgress(progress: number): void {
+    if (!this.workflowStatus) return;
+
+    if (progress > this.workflowStatus.progress) {
+      console.log(`📈 Updating progress from ${this.workflowStatus.progress}% to ${progress}%`);
+      this.workflowStatus.progress = progress;
+      // Find the current active node
+      const activeNode = this.workflowStatus.nodes.find((n) => n.status === 'active');
+      this.emit('progress_update', {
+        nodeId: activeNode?.id || 'unknown',
+        progress,
+      });
+    }
+  } // Run the actual agentic workflow
+  private async runAgenticWorkflow(
+    requirements: UserRequirements,
+    logEmitter: EventEmitter,
+  ): Promise<void> {
+    try {
+      // Run the agentic package workflow and get the real results
+      const movieEvaluations = await runVideoRecommendationAgent(requirements.prompt, logEmitter);
+
+      // Mark workflow as completed
+      if (this.workflowStatus?.status === 'running') {
+        this.workflowStatus.status = 'completed';
+        this.workflowStatus.endTime = new Date();
+        this.workflowStatus.progress = 100;
+
+        // Mark all nodes as completed
+        this.workflowStatus.nodes.forEach((node) => {
+          if (node.status !== 'completed') {
+            node.status = 'completed';
+          }
+        });
+
+        // Send final progress update
+        this.emit('progress_update', {
+          nodeId: 'final_selection',
+          progress: 100,
+        });
+
+        // Convert MovieEvaluation[] to Movie[] for the webapp
+        const recommendations: Movie[] = movieEvaluations.map((evaluation, index) => ({
+          id: (index + 1).toString(),
+          title: evaluation.movie.title,
+          year: evaluation.movie.year,
+          rating: evaluation.movie.rating,
+          overview: evaluation.movie.description || 'No description available',
+          genre: evaluation.movie.genre || [],
+        }));
+
+        this.workflowStatus.results = recommendations;
+        this.emit('workflow_complete', { recommendations });
+        this.currentWorkflow = null;
+      }
+    } catch (error) {
+      // Handle workflow error
+      if (this.workflowStatus) {
+        this.workflowStatus.status = 'error';
+        this.workflowStatus.endTime = new Date();
+
+        // Mark the current active node as error
+        const activeNode = this.workflowStatus.nodes.find((n) => n.status === 'active');
+        if (activeNode) {
+          activeNode.status = 'error';
+        }
+      }
+
+      this.emit('workflow_error', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: error,
+      });
       this.currentWorkflow = null;
     }
   }

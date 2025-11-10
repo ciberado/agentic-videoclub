@@ -1,7 +1,6 @@
-import React from 'react';
-import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
+import { createRoot } from 'react-dom/client';
 
 import App from './App';
 
@@ -11,16 +10,14 @@ import '@mantine/notifications/styles.css';
 
 const container = document.getElementById('root');
 if (!container) {
-    throw new Error('Root element not found');
+  throw new Error('Root element not found');
 }
 
 const root = createRoot(container);
 
 root.render(
-    <React.StrictMode>
-        <MantineProvider>
-            <Notifications />
-            <App />
-        </MantineProvider>
-    </React.StrictMode>
+  <MantineProvider>
+    <Notifications />
+    <App />
+  </MantineProvider>,
 );

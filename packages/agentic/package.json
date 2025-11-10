@@ -1,7 +1,9 @@
 {
-  "name": "agentic",
+  "name": "@videoclub/agentic",
   "version": "0.0.1",
   "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "start": "tsc && LOG_LEVEL=silly node dist/index.js",
     "dev": "LOG_LEVEL=silly ts-node-dev --transpile-only src/index.ts",
