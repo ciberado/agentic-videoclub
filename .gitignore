@@ -52,3 +52,4 @@ packages/*/logs/
 
 .env
 
+packages/webapp/public/
