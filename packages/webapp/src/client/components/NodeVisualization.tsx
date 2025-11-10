@@ -28,7 +28,7 @@ const NodeVisualization: React.FC<NodeVisualizationProps> = ({ nodes }) => {
         return completedCount;
     };
 
-    const getStepIcon = (node: WorkflowNode) => {
+    const getStepIcon = (node: WorkflowNode): React.ReactElement => {
         switch (node.status) {
             case 'completed':
                 return <IconCheck size={16} />;
@@ -72,7 +72,7 @@ const NodeVisualization: React.FC<NodeVisualizationProps> = ({ nodes }) => {
                 size="sm"
                 allowNextStepsSelect={false}
             >
-                {nodes.map((node, index) => (
+                {nodes.map((node, _index) => (
                     <Stepper.Step
                         key={node.id}
                         label={node.name}

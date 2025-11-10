@@ -121,7 +121,7 @@ export class LogWatcher extends EventEmitter {
                         nodeId: logEntry.nodeId,
                         details: logEntry.details || logEntry
                     });
-                } catch (parseError) {
+                } catch (_parseError) {
                     console.warn('Failed to parse log line:', line);
                 }
             }

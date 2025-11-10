@@ -63,7 +63,7 @@ export class AgentInvoker extends EventEmitter {
     }
 
     // TODO: Replace with actual agentic package integration
-    private async simulateWorkflow(requirements: UserRequirements): Promise<void> {
+    private async simulateWorkflow(_requirements: UserRequirements): Promise<void> {
         if (!this.workflowStatus) return;
 
         const nodes = this.workflowStatus.nodes;
