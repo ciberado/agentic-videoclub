@@ -109,10 +109,25 @@ const fileTransport = new winston.transports.File({
 });
 
 // Create the logger configuration
+let eventEmitter: winston.Logger | null = null;
+
 const logger = winston.createLogger({
   level: logLevel,
   levels: logLevels,
-  format: process.env.NODE_ENV === 'production' ? productionFormat : developmentFormat,
+  format: winston.format.combine(
+    // Custom format that emits events before other formats
+    winston.format((info) => {
+      // Emit the logged event if logger has been set up
+      if (eventEmitter) {
+        process.nextTick(() => {
+          eventEmitter!.emit('logged', info);
+        });
+      }
+      return info;
+    })(),
+    // Then apply the normal formatting
+    process.env.NODE_ENV === 'production' ? productionFormat : developmentFormat,
+  ),
   defaultMeta: { service: 'video-recommendation-agent' },
   transports: [
     // Console transport for all environments
@@ -155,6 +170,9 @@ const logger = winston.createLogger({
   ],
 });
 
+// Set the event emitter reference after logger creation
+eventEmitter = logger;
+
 // Log initialization message with file location
 logger.info('Logger initialized', {
   logFile: executionLogFile,
@@ -163,7 +181,7 @@ logger.info('Logger initialized', {
 });
 
 // Create specialized loggers for different components
-export const nodeLogger = (nodeId: string) => logger.child({ nodeId });
+export const nodeLogger = (nodeId: string): winston.Logger => logger.child({ nodeId });
 export const httpLogger = logger.child({ component: 'http' });
 export const llmLogger = logger.child({ component: 'llm' });
 export const evaluationLogger = logger.child({ component: 'evaluation' });
