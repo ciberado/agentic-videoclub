@@ -35,6 +35,11 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ movies }) => {
     return rating.toFixed(1);
   };
 
+  const formatConfidenceScore = (score?: number): string => {
+    if (!score) return 'N/A';
+    return `${Math.round(score * 100)}%`;
+  };
+
   const handleReasoningClick = (reasoning: string): void => {
     setSelectedMovieReasoning(reasoning);
     setIsModalOpen(true);
@@ -174,7 +179,7 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ movies }) => {
                 <Table.Th>Year</Table.Th>
                 <Table.Th>Rating</Table.Th>
                 <Table.Th>Genres</Table.Th>
-                <Table.Th>Source</Table.Th>
+                <Table.Th>Score</Table.Th>
                 <Table.Th>Reasoning</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -207,9 +212,9 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ movies }) => {
                     <Text size="sm">{formatGenres(movie.genre)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    {movie.source ? (
-                      <Badge variant="outline" size="xs">
-                        {movie.source}
+                    {movie.confidenceScore ? (
+                      <Badge variant="gradient" gradient={{ from: 'green', to: 'blue' }} size="sm">
+                        {formatConfidenceScore(movie.confidenceScore)}
                       </Badge>
                     ) : (
                       <Text c="dimmed">-</Text>

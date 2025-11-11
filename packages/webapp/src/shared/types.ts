@@ -20,6 +20,7 @@ export interface Movie {
   tmdbId?: number;
   source?: string;
   reasoning?: string;
+  confidenceScore?: number;
 }
 
 export interface WorkflowNode {

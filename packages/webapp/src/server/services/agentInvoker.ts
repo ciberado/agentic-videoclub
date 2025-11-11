@@ -307,6 +307,7 @@ export class AgentInvoker extends EventEmitter {
           genre: evaluation.movie.genre || [],
           posterUrl: evaluation.movie.posterUrl,
           reasoning: evaluation.matchReasoning,
+          confidenceScore: evaluation.confidenceScore,
         }));
 
         this.workflowStatus.results = recommendations;
