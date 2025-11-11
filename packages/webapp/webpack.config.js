@@ -34,9 +34,11 @@ module.exports = {
     static: {
       directory: path.join(__dirname, 'public'),
     },
+    host: '0.0.0.0',
     port: 3000,
     hot: false,
     liveReload: false,
+    allowedHosts: ['localhost', 'videoclub', 'videoclub:3000', 'videoclub:3001'],
     proxy: {
       '/api': 'http://localhost:3001',
       '/api/ws': {

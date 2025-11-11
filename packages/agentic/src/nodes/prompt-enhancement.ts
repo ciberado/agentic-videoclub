@@ -44,6 +44,7 @@ export async function promptEnhancementNode(
 ): Promise<Partial<typeof VideoRecommendationAgentState.State>> {
   const nodeId = 'prompt_enhancement_node';
   const startTime = logNodeStart(nodeId, 'enhance_user_input', { userInput: state.userInput });
+
   try {
     logger.info('🎯 Starting prompt enhancement analysis', {
       nodeId,

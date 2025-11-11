@@ -23,31 +23,31 @@ export class AgentInvoker extends EventEmitter {
     const workflowId = `workflow_${Date.now()}`;
     this.currentWorkflow = workflowId;
 
-    // Initialize workflow status with proper nodes
+    // Initialize workflow status with proper nodes (matching actual LangGraph node IDs)
     this.workflowStatus = {
       id: workflowId,
       status: 'running',
       nodes: [
         {
-          id: 'prompt_enhancement',
+          id: 'prompt_enhancement_node',
           name: 'Prompt Enhancement',
           description: 'Analyzing and enhancing user requirements',
           status: 'pending',
         },
         {
-          id: 'movie_discovery',
+          id: 'movie_discovery_and_data_fetching_node',
           name: 'Movie Discovery',
           description: 'Discovering and fetching movie data',
           status: 'pending',
         },
         {
-          id: 'movie_evaluation',
+          id: 'intelligent_evaluation_node',
           name: 'Movie Evaluation',
           description: 'Evaluating movies against user criteria',
           status: 'pending',
         },
         {
-          id: 'final_selection',
+          id: 'batch_control_and_routing_node',
           name: 'Final Selection',
           description: 'Selecting and ranking final recommendations',
           status: 'pending',
@@ -103,60 +103,112 @@ export class AgentInvoker extends EventEmitter {
   private updateProgress(logEvent: { nodeId?: string; message: string; level: string }): void {
     if (!this.workflowStatus) return;
 
-    const { message } = logEvent;
-    console.log('🔍 Checking log message for progress:', message);
+    const { message, nodeId } = logEvent;
+    console.log('🔍 Processing log for progress:', { nodeId, message: message.substring(0, 100) });
 
-    // Map log events to workflow nodes using actual log messages from the agentic package
+    // Direct node ID mapping from logs
+    if (nodeId) {
+      // Check if this is a start message for a node
+      if (message.includes('started') || message.includes('Starting')) {
+        this.updateNodeStatus(nodeId, 'active');
+
+        // Update progress based on which node is starting
+        switch (nodeId) {
+          case 'prompt_enhancement_node':
+            this.updateOverallProgress(10);
+            break;
+          case 'movie_discovery_and_data_fetching_node':
+            this.updateOverallProgress(30);
+            break;
+          case 'intelligent_evaluation_node':
+            this.updateOverallProgress(60);
+            break;
+          case 'batch_control_and_routing_node':
+            this.updateOverallProgress(85);
+            break;
+        }
+      }
+
+      // Check if this is a completion message for a node
+      else if (message.includes('completed') || message.includes('successful')) {
+        this.updateNodeStatus(nodeId, 'completed');
+
+        // Update progress based on which node completed
+        switch (nodeId) {
+          case 'prompt_enhancement_node':
+            this.updateOverallProgress(25);
+            break;
+          case 'movie_discovery_and_data_fetching_node':
+            this.updateOverallProgress(50);
+            break;
+          case 'intelligent_evaluation_node':
+            this.updateOverallProgress(75);
+            break;
+          case 'batch_control_and_routing_node':
+            this.updateOverallProgress(100);
+            break;
+        }
+      }
+    }
+
+    // Fallback: Handle cases based on message content for additional precision
+    // eslint-disable-next-line no-control-regex
+    const cleanMessage = message.replace(/\x1b\[[0-9;]*m/g, '');
+
     // Prompt Enhancement Phase
-    if (message.includes('🎯 Starting prompt enhancement analysis')) {
-      this.updateNodeStatus('prompt_enhancement', 'active');
+    if (cleanMessage.includes('Starting prompt enhancement')) {
+      this.updateNodeStatus('prompt_enhancement_node', 'active');
       this.updateOverallProgress(10);
-    } else if (message.includes('✨ Prompt enhancement completed successfully')) {
-      this.updateNodeStatus('prompt_enhancement', 'completed');
+    } else if (cleanMessage.includes('Prompt enhancement completed')) {
+      this.updateNodeStatus('prompt_enhancement_node', 'completed');
       this.updateOverallProgress(25);
     }
 
     // Movie Discovery Phase
     else if (
-      message.includes('🎬 Starting movie discovery and data fetching') ||
-      message.includes('🌐 Initial movie discovery from Prime Video')
+      cleanMessage.includes('Starting movie discovery') ||
+      cleanMessage.includes('Initial movie discovery')
     ) {
-      this.updateNodeStatus('movie_discovery', 'active');
+      this.updateNodeStatus('movie_discovery_and_data_fetching_node', 'active');
       this.updateOverallProgress(30);
-    } else if (message.includes('Movie discovery completed')) {
-      this.updateNodeStatus('movie_discovery', 'completed');
+    } else if (cleanMessage.includes('Movie discovery completed')) {
+      this.updateNodeStatus('movie_discovery_and_data_fetching_node', 'completed');
       this.updateOverallProgress(50);
     }
 
     // Movie Evaluation Phase
     else if (
-      message.includes('🧠 Starting intelligent batch evaluation') ||
-      message.includes('Starting movie evaluation') ||
-      message.includes('Evaluating batch')
+      cleanMessage.includes('Starting intelligent') ||
+      cleanMessage.includes('Starting movie evaluation') ||
+      cleanMessage.includes('Evaluating batch')
     ) {
-      this.updateNodeStatus('movie_evaluation', 'active');
+      this.updateNodeStatus('intelligent_evaluation_node', 'active');
       this.updateOverallProgress(60);
     } else if (
-      message.includes('📊 Intelligent evaluation completed') ||
-      message.includes('Movie evaluation completed')
+      cleanMessage.includes('Intelligent evaluation completed') ||
+      cleanMessage.includes('Movie evaluation completed')
     ) {
-      this.updateNodeStatus('movie_evaluation', 'completed');
+      this.updateNodeStatus('intelligent_evaluation_node', 'completed');
       this.updateOverallProgress(75);
     }
 
     // Final Selection Phase
-    else if (message.includes('🎉 Video Recommendation Agent completed successfully')) {
-      this.updateNodeStatus('final_selection', 'active');
-      this.updateOverallProgress(90);
+    else if (
+      cleanMessage.includes('Starting final recommendation') ||
+      cleanMessage.includes('compile_final_recommendations')
+    ) {
+      this.updateNodeStatus('batch_control_and_routing_node', 'active');
+      this.updateOverallProgress(85);
+    } else if (cleanMessage.includes('Agent completed successfully')) {
+      this.updateNodeStatus('batch_control_and_routing_node', 'completed');
+      this.updateOverallProgress(100);
     }
 
-    // Also track progress updates from specific progress logs
-    if (message.includes('Data fetching progress') || message.includes('progress:')) {
-      // Extract progress from messages like "Data fetching progress 3/10 (30.0%)"
-      const progressMatch = message.match(/(\d+)\/(\d+)\s*\((\d+(?:\.\d+)?)%\)/);
+    // Progress updates within phases
+    if (cleanMessage.includes('Data fetching progress') || cleanMessage.includes('progress:')) {
+      const progressMatch = cleanMessage.match(/(\d+)\/(\d+)\s*\((\d+(?:\.\d+)?)%\)/);
       if (progressMatch) {
         const currentProgress = parseFloat(progressMatch[3]);
-        // Scale the progress within the current phase
         const activeNode = this.workflowStatus.nodes.find((n) => n.status === 'active');
         if (activeNode) {
           this.emit('progress_update', {
@@ -230,7 +282,7 @@ export class AgentInvoker extends EventEmitter {
 
         // Send final progress update
         this.emit('progress_update', {
-          nodeId: 'final_selection',
+          nodeId: 'batch_control_and_routing_node',
           progress: 100,
         });
 

@@ -1,14 +1,4 @@
-import {
-  AppShell,
-  Container,
-  Title,
-  Paper,
-  Stack,
-  Group,
-  Badge,
-  Progress,
-  Text,
-} from '@mantine/core';
+import { AppShell, Container, Title, Paper, Stack, Group, Badge, Text } from '@mantine/core';
 import React, { useState, useMemo } from 'react';
 
 import { UserRequirements, WorkflowStatus, Movie, LogEvent } from '../shared/types';
@@ -52,25 +42,25 @@ const App: React.FC = () => {
         status: 'running',
         nodes: [
           {
-            id: 'prompt_enhancement',
+            id: 'prompt_enhancement_node',
             name: 'Prompt Enhancement',
             description: 'Analyzing and enhancing user requirements',
             status: 'pending',
           },
           {
-            id: 'movie_discovery',
+            id: 'movie_discovery_and_data_fetching_node',
             name: 'Movie Discovery',
             description: 'Discovering and fetching movie data',
             status: 'pending',
           },
           {
-            id: 'movie_evaluation',
+            id: 'intelligent_evaluation_node',
             name: 'Movie Evaluation',
             description: 'Evaluating movies against user criteria',
             status: 'pending',
           },
           {
-            id: 'final_selection',
+            id: 'batch_control_and_routing_node',
             name: 'Final Selection',
             description: 'Selecting and ranking final recommendations',
             status: 'pending',
@@ -220,11 +210,7 @@ const App: React.FC = () => {
                     <Text size="lg" fw={500}>
                       Workflow Progress
                     </Text>
-                    <Text size="sm" c="dimmed">
-                      {Math.round(workflowStatus.progress)}%
-                    </Text>
                   </Group>
-                  <Progress value={workflowStatus.progress} animated />
                   <NodeVisualization nodes={workflowStatus.nodes} />
                 </Stack>
               </Paper>

@@ -1,4 +1,4 @@
-import { Stack, Stepper, Text, Group, Progress } from '@mantine/core';
+import { Stack, Stepper, Text } from '@mantine/core';
 import { IconCheck, IconLoader, IconX, IconClock } from '@tabler/icons-react';
 import React from 'react';
 
@@ -18,15 +18,17 @@ const NodeVisualization: React.FC<NodeVisualizationProps> = ({ nodes }) => {
   };
 
   const getStepIcon = (node: WorkflowNode): React.ReactElement => {
+    const iconSize = node.status === 'active' ? 20 : 16;
+
     switch (node.status) {
       case 'completed':
-        return <IconCheck size={16} />;
+        return <IconCheck size={iconSize} />;
       case 'active':
-        return <IconLoader size={16} />;
+        return <IconLoader size={iconSize} />;
       case 'error':
-        return <IconX size={16} />;
+        return <IconX size={iconSize} />;
       default:
-        return <IconClock size={16} />;
+        return <IconClock size={iconSize} />;
     }
   };
 
@@ -52,44 +54,62 @@ const NodeVisualization: React.FC<NodeVisualizationProps> = ({ nodes }) => {
   }
 
   return (
-    <Stack gap="md">
-      <Text size="lg" fw={500}>
-        Workflow Progress
-      </Text>
+    <>
+      {/* CSS keyframes for animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.8;
+            transform: scale(1.02);
+          }
+        }
+        @keyframes glow {
+          0%, 100% {
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+          }
+        }
+        .active-step {
+          animation: glow 2s ease-in-out infinite;
+        }
+      `}</style>
 
-      <Stepper
-        active={getActiveStep()}
-        orientation="horizontal"
-        size="sm"
-        allowNextStepsSelect={false}
-      >
-        {nodes.map((node, _index) => (
-          <Stepper.Step
-            key={node.id}
-            label={node.name}
-            description={node.description}
-            icon={getStepIcon(node)}
-            color={getStepColor(node)}
-            loading={node.status === 'active'}
-          >
-            {node.status === 'active' && node.progress !== undefined && (
-              <Group gap="xs" mt="xs">
-                <Text size="xs" c="dimmed">
-                  Progress: {Math.round(node.progress)}%
+      <Stack gap="md">
+        <Stepper
+          active={getActiveStep()}
+          orientation="horizontal"
+          size="sm"
+          allowNextStepsSelect={false}
+        >
+          {nodes.map((node, _index) => (
+            <Stepper.Step
+              key={node.id}
+              label={node.name}
+              description={node.description}
+              icon={getStepIcon(node)}
+              color={getStepColor(node)}
+              loading={node.status === 'active'}
+              className={node.status === 'active' ? 'active-step' : ''}
+              style={{
+                fontWeight: node.status === 'active' ? 600 : 400,
+              }}
+            >
+              {node.details && node.status !== 'active' && (
+                <Text size="xs" c="dimmed" mt="xs">
+                  {node.details}
                 </Text>
-                <Progress value={node.progress} size="xs" style={{ flex: 1 }} animated />
-              </Group>
-            )}
-
-            {node.details && (
-              <Text size="xs" c="dimmed" mt="xs">
-                {node.details}
-              </Text>
-            )}
-          </Stepper.Step>
-        ))}
-      </Stepper>
-    </Stack>
+              )}
+            </Stepper.Step>
+          ))}
+        </Stepper>
+      </Stack>
+    </>
   );
 };
 

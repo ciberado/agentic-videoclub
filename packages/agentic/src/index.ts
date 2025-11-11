@@ -101,7 +101,6 @@ async function runVideoRecommendationAgent(
     const finalState = await compiledVideoRecommendationAgent.invoke(initialState, {
       recursionLimit: 50, // Increase from default 25 to handle batch processing
     } as { recursionLimit: number });
-
     logger.info('🎉 Video Recommendation Agent completed successfully', {
       totalSearchAttempts: finalState.searchAttemptNumber,
       finalRecommendationsCount: finalState.finalRecommendations.length,
