@@ -305,6 +305,7 @@ export class AgentInvoker extends EventEmitter {
           rating: evaluation.movie.rating,
           overview: evaluation.movie.description || 'No description available',
           genre: evaluation.movie.genre || [],
+          reasoning: evaluation.matchReasoning,
         }));
 
         this.workflowStatus.results = recommendations;

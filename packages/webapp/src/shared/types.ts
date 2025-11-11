@@ -19,6 +19,7 @@ export interface Movie {
   posterUrl?: string;
   tmdbId?: number;
   source?: string;
+  reasoning?: string;
 }
 
 export interface WorkflowNode {
