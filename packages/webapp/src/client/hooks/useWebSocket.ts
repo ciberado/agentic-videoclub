@@ -34,25 +34,27 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
 
   const connect = useCallback(() => {
     if (ws.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected, skipping connection attempt');
+      console.log('[WS] WebSocket already connected, skipping connection attempt');
       return;
     }
 
     if (ws.current?.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket already connecting, skipping connection attempt');
+      console.log('[WS] WebSocket already connecting, skipping connection attempt');
       return;
     }
 
+    console.log('[WS] Attempting to connect to WebSocket:', url);
     setConnectionStatus('connecting');
 
     try {
       // Add a small delay to ensure server is ready
       setTimeout(() => {
         try {
+          console.log('[WS] Creating new WebSocket connection...');
           ws.current = new WebSocket(url);
 
           ws.current.onopen = () => {
-            console.log('WebSocket connected');
+            console.log('[WS] WebSocket connected to', url);
             setConnectionStatus('connected');
             reconnectAttempts.current = 0;
 
@@ -71,16 +73,18 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
           };
 
           ws.current.onmessage = (event) => {
+            console.log('[WS] Raw message received:', event.data);
             try {
               const message: ServerMessage = JSON.parse(event.data);
+              console.log('[WS] Parsed message:', message);
               handleServerMessage(message);
             } catch (error) {
-              console.error('Error parsing WebSocket message:', error);
+              console.error('[WS] Error parsing WebSocket message:', error, event.data);
             }
           };
 
           ws.current.onclose = (event) => {
-            console.log('WebSocket disconnected:', event.code, event.reason);
+            console.log('[WS] WebSocket disconnected:', event.code, event.reason);
             setConnectionStatus('disconnected');
 
             // Attempt to reconnect if not a manual disconnect
@@ -110,41 +114,56 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
           };
 
           ws.current.onerror = (error) => {
-            console.error('WebSocket error:', error);
+            console.error('[WS] WebSocket error during connection:', error);
+            console.error('[WS] WebSocket readyState:', ws.current?.readyState);
             setConnectionStatus('error');
           };
         } catch (innerError) {
-          console.error('Error creating WebSocket connection:', innerError);
+          console.error('[WS] Error creating WebSocket connection:', innerError);
           setConnectionStatus('error');
         }
       }, 1000); // 1 second delay
     } catch (error) {
-      console.error('Error in connect function:', error);
+      console.error('[WS] Error in connect function:', error);
       setConnectionStatus('error');
     }
   }, [url]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleServerMessage = (message: any): void => {
+    console.log('[WS] handleServerMessage', message);
     // Filter out webpack-dev-server messages
     if (
       message.type &&
-      ['hot', 'liveReload', 'reconnect', 'overlay', 'hash', 'ok'].includes(message.type)
+      [
+        'hot',
+        'liveReload',
+        'reconnect',
+        'overlay',
+        'hash',
+        'ok',
+        'static-changed',
+        'invalid',
+        'still-ok',
+      ].includes(message.type)
     ) {
       // These are webpack-dev-server HMR messages, ignore them silently
+      console.log('[WS] Ignoring webpack HMR message:', message.type);
       return;
     }
 
     // Ensure this is a proper ServerMessage structure
     if (!message.type) {
-      console.warn('Invalid message format received:', message);
+      console.warn('[WS] Invalid message format received:', message);
       return;
     }
 
+    console.log('[WS] Processing application message:', message);
     const serverMessage = message as ServerMessage;
 
     switch (serverMessage.type) {
       case 'workflow_started':
+        console.log('[WS] Event: workflow_started', serverMessage.payload);
         if (serverMessage.payload && 'workflowId' in serverMessage.payload) {
           callbacks.onWorkflowStarted?.(serverMessage.payload);
           notifications.show({
@@ -157,12 +176,14 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'workflow_status':
+        console.log('[WS] Event: workflow_status', serverMessage.payload);
         if (serverMessage.payload && 'status' in serverMessage.payload) {
           callbacks.onWorkflowStatus?.(serverMessage.payload);
         }
         break;
 
       case 'node_activated':
+        console.log('[WS] Event: node_activated', serverMessage.payload);
         if (
           serverMessage.payload &&
           'nodeId' in serverMessage.payload &&
@@ -173,6 +194,7 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'node_completed':
+        console.log('[WS] Event: node_completed', serverMessage.payload);
         if (
           serverMessage.payload &&
           'nodeId' in serverMessage.payload &&
@@ -183,6 +205,7 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'node_error':
+        console.log('[WS] Event: node_error', serverMessage.payload);
         if (
           serverMessage.payload &&
           'nodeId' in serverMessage.payload &&
@@ -199,12 +222,14 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'movie_found':
+        console.log('[WS] Event: movie_found', serverMessage.payload);
         if (serverMessage.payload && 'movie' in serverMessage.payload) {
           callbacks.onMovieFound?.(serverMessage.payload);
         }
         break;
 
       case 'progress_update':
+        console.log('[WS] Event: progress_update', serverMessage.payload);
         if (
           serverMessage.payload &&
           'nodeId' in serverMessage.payload &&
@@ -215,6 +240,8 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'log_event':
+        // Optionally log all log events
+        // console.log('[WS] Event: log_event', serverMessage.payload);
         if (
           serverMessage.payload &&
           'timestamp' in serverMessage.payload &&
@@ -226,6 +253,7 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'workflow_complete':
+        console.log('[WS] Event: workflow_complete', serverMessage.payload);
         if (serverMessage.payload && 'recommendations' in serverMessage.payload) {
           callbacks.onWorkflowComplete?.(serverMessage.payload);
           notifications.show({
@@ -238,6 +266,7 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       case 'error':
+        console.log('[WS] Event: error', serverMessage.payload);
         if (serverMessage.payload && 'message' in serverMessage.payload) {
           callbacks.onError?.(serverMessage.payload);
           notifications.show({
@@ -250,7 +279,7 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
         break;
 
       default:
-        console.warn('Unknown application message type:', message);
+        console.warn('[WS] Unknown application message type:', message);
     }
   };
 

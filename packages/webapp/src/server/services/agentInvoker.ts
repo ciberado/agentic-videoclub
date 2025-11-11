@@ -65,6 +65,11 @@ export class AgentInvoker extends EventEmitter {
 
       // Forward log events from agentic package and track progress
       logEmitter.on('log_event', (logEvent) => {
+        console.log('🔍 AgentInvoker received log event:', {
+          level: logEvent.level,
+          message: logEvent.message.substring(0, 100) + '...',
+          nodeId: logEvent.nodeId,
+        });
         this.emit('log_event', logEvent);
         this.updateProgress(logEvent);
       });
@@ -103,49 +108,67 @@ export class AgentInvoker extends EventEmitter {
 
     // Map log events to workflow nodes using actual log messages from the agentic package
     // Prompt Enhancement Phase
-    if (
-      message.includes('🎯 Starting prompt enhancement analysis') ||
-      message.includes('Starting prompt enhancement')
-    ) {
+    if (message.includes('🎯 Starting prompt enhancement analysis')) {
       this.updateNodeStatus('prompt_enhancement', 'active');
-      this.updateOverallProgress(25);
-    } else if (
-      message.includes('✨ Prompt enhancement completed successfully') ||
-      message.includes('enhanced user criteria')
-    ) {
+      this.updateOverallProgress(10);
+    } else if (message.includes('✨ Prompt enhancement completed successfully')) {
       this.updateNodeStatus('prompt_enhancement', 'completed');
+      this.updateOverallProgress(25);
     }
 
     // Movie Discovery Phase
     else if (
-      message.includes('movie discovery') ||
-      message.includes('scraping') ||
-      message.includes('Routing to movie_discovery')
+      message.includes('🎬 Starting movie discovery and data fetching') ||
+      message.includes('🌐 Initial movie discovery from Prime Video')
     ) {
       this.updateNodeStatus('movie_discovery', 'active');
+      this.updateOverallProgress(30);
+    } else if (message.includes('Movie discovery completed')) {
+      this.updateNodeStatus('movie_discovery', 'completed');
       this.updateOverallProgress(50);
     }
 
     // Movie Evaluation Phase
     else if (
       message.includes('🧠 Starting intelligent batch evaluation') ||
-      message.includes('evaluating movies')
+      message.includes('Starting movie evaluation') ||
+      message.includes('Evaluating batch')
     ) {
       this.updateNodeStatus('movie_evaluation', 'active');
-      this.updateOverallProgress(75);
-    } else if (message.includes('📊 Intelligent evaluation completed')) {
+      this.updateOverallProgress(60);
+    } else if (
+      message.includes('📊 Intelligent evaluation completed') ||
+      message.includes('Movie evaluation completed')
+    ) {
       this.updateNodeStatus('movie_evaluation', 'completed');
+      this.updateOverallProgress(75);
     }
 
     // Final Selection Phase
-    else if (
-      message.includes('🎉 Video Recommendation Agent completed successfully') ||
-      message.includes('✅ Routing to END')
-    ) {
+    else if (message.includes('🎉 Video Recommendation Agent completed successfully')) {
       this.updateNodeStatus('final_selection', 'active');
       this.updateOverallProgress(90);
     }
-  } // Helper method to update node status
+
+    // Also track progress updates from specific progress logs
+    if (message.includes('Data fetching progress') || message.includes('progress:')) {
+      // Extract progress from messages like "Data fetching progress 3/10 (30.0%)"
+      const progressMatch = message.match(/(\d+)\/(\d+)\s*\((\d+(?:\.\d+)?)%\)/);
+      if (progressMatch) {
+        const currentProgress = parseFloat(progressMatch[3]);
+        // Scale the progress within the current phase
+        const activeNode = this.workflowStatus.nodes.find((n) => n.status === 'active');
+        if (activeNode) {
+          this.emit('progress_update', {
+            nodeId: activeNode.id,
+            progress: Math.min(currentProgress, 100),
+          });
+        }
+      }
+    }
+  }
+
+  // Helper method to update node status
   private updateNodeStatus(
     nodeId: string,
     status: 'pending' | 'active' | 'completed' | 'error',
@@ -153,9 +176,19 @@ export class AgentInvoker extends EventEmitter {
     if (!this.workflowStatus) return;
 
     const node = this.workflowStatus.nodes.find((n) => n.id === nodeId);
-    if (node && node.status !== 'completed') {
+    if (node && node.status !== 'completed' && node.status !== status) {
+      const previousStatus = node.status;
       node.status = status;
-      this.emit('node_activated', { nodeId, nodeName: node.name });
+
+      if (status === 'active') {
+        this.emit('node_activated', { nodeId, nodeName: node.name });
+      } else if (status === 'completed') {
+        this.emit('node_completed', { nodeId, nodeName: node.name });
+      } else if (status === 'error') {
+        this.emit('node_error', { nodeId, error: 'Node execution failed' });
+      }
+
+      console.log(`🔄 Node ${nodeId} status changed from ${previousStatus} to ${status}`);
     }
   }
 

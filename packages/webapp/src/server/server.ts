@@ -14,7 +14,7 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({
   server,
-  path: '/ws',
+  path: '/api/ws',
 });
 
 // Middleware

@@ -30,17 +30,19 @@ const App: React.FC = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
 
-      // In development with webpack dev server, use the same host and let webpack proxy handle it
-      if (host.includes('localhost:3000') || host.includes('3000.uks1.devtunnels.ms')) {
-        // Use same host as the web page - webpack will proxy to the backend
-        return `${protocol}//${host}/ws`;
-      }
+      console.log('[APP] WebSocket URL calculation:', {
+        protocol,
+        host,
+        location: window.location.href,
+      });
 
-      // For production or direct backend access
-      return `${protocol}//${host}/ws`;
+      // Always use the same host and let webpack proxy handle it to backend
+      const url = `${protocol}//${host}/api/ws`;
+      console.log('[APP] Calculated WebSocket URL:', url);
+      return url;
     }
     // Fallback for SSR
-    return 'ws://localhost:3000/ws'; // Use webpack dev server in development
+    return 'ws://localhost:3000/api/ws'; // Use webpack dev server in development
   }, []);
 
   const { sendMessage, connectionStatus } = useWebSocket(websocketUrl, {
@@ -80,11 +82,12 @@ const App: React.FC = () => {
       setRecommendations([]);
     },
     onWorkflowStatus: (data) => {
-      // Sync with existing workflow status (for reconnections)
+      console.log('[APP] onWorkflowStatus', data);
       setWorkflowStatus(data.status);
       setRecommendations(data.status.results || []);
     },
     onNodeActivated: (data) => {
+      console.log('[APP] onNodeActivated', data);
       setWorkflowStatus((prev) => {
         if (!prev) return null;
         return {
@@ -97,6 +100,7 @@ const App: React.FC = () => {
       });
     },
     onNodeCompleted: (data) => {
+      console.log('[APP] onNodeCompleted', data);
       setWorkflowStatus((prev) => {
         if (!prev) return null;
         return {
@@ -108,6 +112,7 @@ const App: React.FC = () => {
       });
     },
     onProgressUpdate: (data) => {
+      console.log('[APP] onProgressUpdate', data);
       setWorkflowStatus((prev) => {
         if (!prev) return null;
         return {
@@ -120,6 +125,7 @@ const App: React.FC = () => {
       });
     },
     onWorkflowComplete: (data) => {
+      console.log('[APP] onWorkflowComplete', data);
       setWorkflowStatus((prev) => {
         if (!prev) return null;
         return {
@@ -133,10 +139,12 @@ const App: React.FC = () => {
       setRecommendations(data.recommendations);
     },
     onLogEvent: (logEvent) => {
+      // Optionally log all log events
+      // console.log('[APP] onLogEvent', logEvent);
       setLogs((prev) => [...prev, logEvent].slice(-100)); // Keep last 100 logs
     },
     onError: (error) => {
-      console.error('Workflow error:', error);
+      console.error('[APP] onError', error);
       setWorkflowStatus((prev) => {
         if (!prev) return null;
         return {
