@@ -67,7 +67,7 @@ export async function intelligentEvaluationNode(
     evaluatedMovies.length > 0
       ? evaluatedMovies.reduce((sum, e) => sum + e.confidenceScore, 0) / evaluatedMovies.length
       : 0;
-  const highConfidenceThreshold = 0.5; // Lowered from 0.75 to allow reasonable matches
+  const highConfidenceThreshold = 0.65; // Lowered from 0.75 to allow reasonable matches
   const highConfidenceMatches = evaluatedMovies.filter(
     (e) => e.confidenceScore >= highConfidenceThreshold,
   );
