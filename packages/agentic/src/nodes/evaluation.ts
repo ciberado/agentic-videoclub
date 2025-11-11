@@ -1,5 +1,5 @@
 import logger from '../config/logger';
-import { evaluateMoviesBatch } from '../services/movie-evaluation-llm';
+import { evaluateMoviesBatchWithReactAgentIntegration } from '../services/movie-evaluation-llm-react-integration';
 import type { VideoRecommendationAgentState } from '../state/definition';
 import {
   logNodeStart,
@@ -57,8 +57,8 @@ export async function intelligentEvaluationNode(
     batchTitles: state.discoveredMoviesBatch.map((m) => m.title),
   });
 
-  // Use real LLM evaluation of the movie batch
-  const evaluatedMovies = await evaluateMoviesBatch(
+  // Use real LLM evaluation of the movie batch with React agent integration (includes poster URL extraction)
+  const evaluatedMovies = await evaluateMoviesBatchWithReactAgentIntegration(
     state.discoveredMoviesBatch,
     state.enhancedUserCriteria!,
   );

@@ -52,6 +52,7 @@ export class MovieCache {
           description TEXT,
           family_rating TEXT,
           themes TEXT NOT NULL, -- JSON array as string
+          poster_url TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -106,6 +107,7 @@ export class MovieCache {
         description: row.description,
         familyRating: row.family_rating,
         themes: JSON.parse(row.themes),
+        posterUrl: row.poster_url || undefined,
       };
 
       logger.debug('✅ Cache hit for movie', {
@@ -139,8 +141,8 @@ export class MovieCache {
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO movies (
           url, title, year, genre, rating, director, 
-          description, family_rating, themes, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          description, family_rating, themes, poster_url, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `);
 
       stmt.run(
@@ -153,6 +155,7 @@ export class MovieCache {
         movie.description,
         movie.familyRating,
         JSON.stringify(movie.themes),
+        movie.posterUrl || null,
       );
 
       logger.debug('💾 Movie cached successfully', {
@@ -198,6 +201,7 @@ export class MovieCache {
           description: row.description,
           familyRating: row.family_rating,
           themes: JSON.parse(row.themes),
+          posterUrl: row.poster_url || undefined,
         };
       }
 
@@ -233,8 +237,8 @@ export class MovieCache {
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO movies (
           url, title, year, genre, rating, director, 
-          description, family_rating, themes, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          description, family_rating, themes, poster_url, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `);
 
       // Use a transaction for better performance
@@ -252,6 +256,7 @@ export class MovieCache {
             movie.description,
             movie.familyRating,
             JSON.stringify(movie.themes),
+            movie.posterUrl || null,
           );
         }
 

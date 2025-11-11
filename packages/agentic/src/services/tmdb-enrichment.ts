@@ -23,6 +23,7 @@ export interface TMDBEnrichmentData {
   cast: string[];
   tmdbRating: number | null;
   voteCount: number | null;
+  posterUrl: string | null;
 }
 
 export class TMDBEnrichmentService {
@@ -73,6 +74,7 @@ export class TMDBEnrichmentService {
           cast TEXT, -- JSON array as string
           tmdb_rating REAL,
           vote_count INTEGER,
+          poster_url TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -122,6 +124,7 @@ export class TMDBEnrichmentService {
             cast: string;
             tmdb_rating: number;
             vote_count: number;
+            poster_url: string;
           }
         | undefined;
 
@@ -141,6 +144,7 @@ export class TMDBEnrichmentService {
         cast: row.cast ? JSON.parse(row.cast) : [],
         tmdbRating: row.tmdb_rating,
         voteCount: row.vote_count,
+        posterUrl: row.poster_url || null,
       };
 
       logger.debug('✅ TMDB cache hit', {
@@ -171,8 +175,8 @@ export class TMDBEnrichmentService {
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO tmdb_enrichment_cache (
           movie_key, extended_overview, top_reviews, additional_genres,
-          content_rating, cast, tmdb_rating, vote_count, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          content_rating, cast, tmdb_rating, vote_count, poster_url, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `);
 
       stmt.run(
@@ -184,6 +188,7 @@ export class TMDBEnrichmentService {
         JSON.stringify(data.cast),
         data.tmdbRating,
         data.voteCount,
+        data.posterUrl,
       );
 
       logger.debug('💾 TMDB enrichment data cached', {
@@ -298,6 +303,12 @@ export class TMDBEnrichmentService {
         }
       }
 
+      // Construct poster URL if poster_path is available
+      let posterUrl: string | null = null;
+      if (movieDetails.poster_path) {
+        posterUrl = `https://image.tmdb.org/t/p/w500${movieDetails.poster_path}`;
+      }
+
       const enrichmentData: TMDBEnrichmentData = {
         extendedOverview: movieDetails.overview || '',
         topReviews,
@@ -306,6 +317,7 @@ export class TMDBEnrichmentService {
         cast,
         tmdbRating: movieDetails.vote_average || null,
         voteCount: movieDetails.vote_count || null,
+        posterUrl,
       };
 
       // Cache the results
@@ -318,6 +330,7 @@ export class TMDBEnrichmentService {
         reviewCount: enrichmentData.topReviews.length,
         castCount: enrichmentData.cast.length,
         tmdbRating: enrichmentData.tmdbRating,
+        hasPoster: !!enrichmentData.posterUrl,
       });
 
       return enrichmentData;

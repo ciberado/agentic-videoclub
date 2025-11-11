@@ -5,6 +5,7 @@ import type { Movie, UserCriteria, MovieEvaluation } from '../types';
 import { logLlmRequest, logLlmResponse } from '../utils/logging';
 import { globalTokenTracker } from '../utils/token-tracker';
 
+import { tmdbEnrichmentService } from './tmdb-enrichment';
 import { enrichMovieWithReactAgent } from './tmdb-enrichment-react-agent';
 
 /**
@@ -14,6 +15,35 @@ import { enrichMovieWithReactAgent } from './tmdb-enrichment-react-agent';
  * instead of manual tool invocation. The React agent automatically handles
  * the decision-making process for when to use TMDB enrichment.
  */
+
+/**
+ * Extract poster URL from TMDB enrichment response
+ */
+function extractPosterUrlFromEnrichment(enrichmentText: string): string | null {
+  try {
+    // Look for TMDB tool response in the enrichment text
+    const tmdbResponseMatch = enrichmentText.match(/\{[^}]*"posterUrl"\s*:\s*"([^"]+)"[^}]*\}/);
+    if (tmdbResponseMatch && tmdbResponseMatch[1]) {
+      return tmdbResponseMatch[1];
+    }
+
+    // Alternative pattern for successful TMDB responses
+    const successResponseMatch = enrichmentText.match(
+      /"success":\s*true[^}]*"posterUrl":\s*"([^"]+)"/,
+    );
+    if (successResponseMatch && successResponseMatch[1]) {
+      return successResponseMatch[1];
+    }
+
+    return null;
+  } catch (error) {
+    logger.debug('Failed to extract poster URL from enrichment text', {
+      component: 'movie-evaluation-react-integration',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
 
 // Zod schema for movie evaluation output validation
 const MovieEvaluationSchema = z.object({
@@ -88,10 +118,43 @@ export async function evaluateMovieWithReactAgentIntegration(
     // Step 1: Use React agent to intelligently enrich movie data
     const enrichedMovieData = await enrichMovieWithReactAgent(movie, userCriteria);
 
+    // Step 1.5: Directly get poster URL from TMDB enrichment service if not already present
+    if (!movie.posterUrl) {
+      try {
+        const tmdbData = await tmdbEnrichmentService.enrichMovieData(movie);
+        if (tmdbData?.posterUrl) {
+          movie.posterUrl = tmdbData.posterUrl;
+          logger.debug('📸 Poster URL obtained from TMDB enrichment service', {
+            component: 'movie-evaluation-react-integration',
+            movieTitle: movie.title,
+            posterUrl: tmdbData.posterUrl,
+          });
+        }
+      } catch (error) {
+        logger.debug('⚠️ Failed to get poster URL from TMDB service', {
+          component: 'movie-evaluation-react-integration',
+          movieTitle: movie.title,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Legacy: Extract poster URL from enrichment data text (fallback)
+    const extractedPosterUrl = extractPosterUrlFromEnrichment(enrichedMovieData);
+    if (extractedPosterUrl && !movie.posterUrl) {
+      movie.posterUrl = extractedPosterUrl;
+      logger.debug('📸 Poster URL extracted from TMDB enrichment text', {
+        component: 'movie-evaluation-react-integration',
+        movieTitle: movie.title,
+        posterUrl: extractedPosterUrl,
+      });
+    }
+
     logger.info('✅ React agent enrichment completed', {
       component: 'movie-evaluation-react-integration',
       movieTitle: movie.title,
       enrichedDataLength: enrichedMovieData.length,
+      hasPosterUrl: !!movie.posterUrl,
     });
 
     // Step 2: Evaluate the movie using the enriched information

@@ -20,6 +20,7 @@ export interface Movie {
   description: string;
   familyRating: string;
   themes: string[];
+  posterUrl?: string;
 }
 
 export interface MovieLink {

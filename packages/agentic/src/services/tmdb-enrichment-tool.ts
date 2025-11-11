@@ -58,6 +58,7 @@ const tmdbEnrichmentToolFn = async ({
         contentRating: null,
         tmdbRating: null,
         voteCount: null,
+        posterUrl: null,
         message: 'No additional data found in TMDB or API limit reached',
       });
     }
@@ -68,6 +69,7 @@ const tmdbEnrichmentToolFn = async ({
       hasOverview: enrichmentData.extendedOverview.length > 0,
       genreCount: enrichmentData.additionalGenres.length,
       tmdbRating: enrichmentData.tmdbRating,
+      hasPoster: !!enrichmentData.posterUrl,
     });
 
     return JSON.stringify({
@@ -77,6 +79,7 @@ const tmdbEnrichmentToolFn = async ({
       contentRating: enrichmentData.contentRating,
       tmdbRating: enrichmentData.tmdbRating,
       voteCount: enrichmentData.voteCount,
+      posterUrl: enrichmentData.posterUrl,
       message: 'Successfully enriched movie data from TMDB',
     });
   } catch (error) {
@@ -94,6 +97,7 @@ const tmdbEnrichmentToolFn = async ({
       contentRating: null,
       tmdbRating: null,
       voteCount: null,
+      posterUrl: null,
       message: `Error during enrichment: ${error instanceof Error ? error.message : 'Unknown error'}`,
     });
   }
@@ -116,6 +120,7 @@ This tool provides:
 - Additional genre classifications  
 - Content rating information
 - TMDB user ratings and vote counts
+- Movie poster URLs for visual presentation
 
 Returns a JSON string with the enrichment data.
 Note: This tool has rate limiting (max 10 calls per evaluation batch) to prevent API abuse.`,
