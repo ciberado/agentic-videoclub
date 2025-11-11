@@ -228,8 +228,19 @@ export class AgentInvoker extends EventEmitter {
     if (!this.workflowStatus) return;
 
     const node = this.workflowStatus.nodes.find((n) => n.id === nodeId);
-    if (node && node.status !== 'completed' && node.status !== status) {
+    if (node && node.status !== status) {
       const previousStatus = node.status;
+
+      // In cyclic workflows, allow nodes to transition from completed back to active
+      if (status === 'active') {
+        // Deactivate any currently active nodes
+        this.workflowStatus.nodes.forEach((n) => {
+          if (n.status === 'active' && n.id !== nodeId) {
+            n.status = 'completed'; // Mark previously active nodes as completed
+          }
+        });
+      }
+
       node.status = status;
 
       if (status === 'active') {

@@ -83,9 +83,18 @@ const App: React.FC = () => {
         return {
           ...prev,
           currentNode: data.nodeId,
-          nodes: prev.nodes.map((node) =>
-            node.id === data.nodeId ? { ...node, status: 'active' } : node,
-          ),
+          nodes: prev.nodes.map((node) => {
+            if (node.id === data.nodeId) {
+              // Activate the current node
+              return { ...node, status: 'active' };
+            } else if (node.status === 'active') {
+              // Deactivate any other currently active nodes
+              // In cyclic workflows, we want to show them as completed if they were run before
+              return { ...node, status: 'completed' };
+            }
+            // Keep other nodes as they were
+            return node;
+          }),
         };
       });
     },
