@@ -142,9 +142,9 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ movies }) => {
               )}
 
               <Group gap="xs" mt="xs">
-                {movie.source && (
-                  <Badge variant="outline" size="xs">
-                    {movie.source}
+                {movie.confidenceScore && (
+                  <Badge variant="gradient" gradient={{ from: 'green', to: 'blue' }} size="xs">
+                    Score: {formatConfidenceScore(movie.confidenceScore)}
                   </Badge>
                 )}
                 {movie.tmdbId && (
