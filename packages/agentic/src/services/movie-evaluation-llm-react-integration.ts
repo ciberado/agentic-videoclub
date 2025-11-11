@@ -179,6 +179,13 @@ EVALUATION CRITERIA:
 5. Quality Indicators (0-1): Overall movie quality based on ratings and reviews
 6. Cultural Relevance (0-1): Current availability and cultural relevance
 
+IMPORTANT SCORING GUIDELINES:
+- If the movie has excluded genres, the confidenceScore should be very low (0.0-0.2)
+- If the movie doesn't match the preferred genres, the confidenceScore should reflect this (max 0.4)
+- If family-friendly is required but the movie isn't appropriate, confidenceScore should be very low (max 0.2)
+- The confidenceScore should be calculated as: (genreAlignment * 0.4) + (themeMatching * 0.25) + (ageAppropriateScore * 0.2) + (qualityIndicators * 0.1) + (culturalRelevance * 0.05)
+- If your reasoning indicates the movie is NOT a good match, ensure the confidenceScore is below 0.4
+
 Provide your evaluation as a JSON object with this exact structure:
 {
   "confidenceScore": number between 0 and 1,
@@ -249,9 +256,25 @@ Important: Respond ONLY with the JSON object, no additional text.`;
       responseTime,
     );
 
+    // Validate confidence score against detailed sub-scores
+    const calculatedScore = calculateValidatedConfidenceScore(parsedEvaluation, userCriteria);
+
+    // If there's a significant discrepancy, log it and use the calculated score
+    const scoreDifference = Math.abs(parsedEvaluation.confidenceScore - calculatedScore);
+    if (scoreDifference > 0.3) {
+      logger.warn('🚨 Confidence score mismatch detected - using calculated score', {
+        component: 'movie-evaluation-react-integration',
+        movieTitle: movie.title,
+        llmScore: parsedEvaluation.confidenceScore,
+        calculatedScore: calculatedScore,
+        difference: scoreDifference,
+        reasoning: parsedEvaluation.matchReasoning.substring(0, 100),
+      });
+    }
+
     const movieEvaluation: MovieEvaluation = {
       movie,
-      confidenceScore: parsedEvaluation.confidenceScore,
+      confidenceScore: scoreDifference > 0.3 ? calculatedScore : parsedEvaluation.confidenceScore,
       matchReasoning: parsedEvaluation.matchReasoning,
       familyAppropriate: parsedEvaluation.familyAppropriate,
     };
@@ -278,6 +301,76 @@ Important: Respond ONLY with the JSON object, no additional text.`;
     // Return fallback evaluation on error
     return createFallbackEvaluation(movie, userCriteria);
   }
+}
+
+/**
+ * Calculate a validated confidence score based on detailed sub-scores
+ * This prevents mismatch between reasoning and final score
+ */
+function calculateValidatedConfidenceScore(
+  evaluation: {
+    genreAlignment: number;
+    themeMatching: number;
+    qualityIndicators: number;
+    ageAppropriateScore: number;
+    culturalRelevance: number;
+    familyAppropriate: boolean;
+    matchReasoning: string;
+  },
+  userCriteria: UserCriteria,
+): number {
+  // Base calculation using weighted sub-scores
+  let calculatedScore = 0;
+  let totalWeight = 0;
+
+  // Genre alignment is most important (40% weight)
+  calculatedScore += evaluation.genreAlignment * 0.4;
+  totalWeight += 0.4;
+
+  // Theme matching is second most important (25% weight)
+  calculatedScore += evaluation.themeMatching * 0.25;
+  totalWeight += 0.25;
+
+  // Age appropriateness (20% weight)
+  calculatedScore += evaluation.ageAppropriateScore * 0.2;
+  totalWeight += 0.2;
+
+  // Quality indicators (10% weight)
+  calculatedScore += evaluation.qualityIndicators * 0.1;
+  totalWeight += 0.1;
+
+  // Cultural relevance (5% weight)
+  calculatedScore += evaluation.culturalRelevance * 0.05;
+  totalWeight += 0.05;
+
+  // Normalize by total weight (should be 1.0, but just in case)
+  calculatedScore = calculatedScore / totalWeight;
+
+  // Family appropriateness check - severe penalty if required but not met
+  if (userCriteria.familyFriendly && !evaluation.familyAppropriate) {
+    calculatedScore *= 0.1; // Severe penalty
+  }
+
+  // Check for negative reasoning patterns that should lower scores
+  const reasoning = evaluation.matchReasoning.toLowerCase();
+  const negativePatterns = [
+    'does not match',
+    'not a good fit',
+    'inappropriate',
+    'wrong genre',
+    'not suitable',
+    "doesn't align",
+    'poor match',
+    'not recommended',
+  ];
+
+  const hasNegativeReasoning = negativePatterns.some((pattern) => reasoning.includes(pattern));
+  if (hasNegativeReasoning && calculatedScore > 0.5) {
+    calculatedScore = Math.min(calculatedScore, 0.4); // Cap at 40% if reasoning is negative
+  }
+
+  // Ensure score is within bounds
+  return Math.max(0, Math.min(1, calculatedScore));
 }
 
 /**
