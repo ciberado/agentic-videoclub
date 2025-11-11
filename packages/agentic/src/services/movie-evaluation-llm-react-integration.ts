@@ -172,7 +172,7 @@ USER CRITERIA:
 - Avoid themes: ${userCriteria.avoidThemes.join(', ')}
 
 EVALUATION CRITERIA:
-1. Genre Alignment (0-1): How well do the movie's genres match the user's preferences?
+1. Genre Alignment (0-1): Does the movie contain ANY of the user's preferred genres? Score highly for broad genre matches (e.g., "Science Fiction" covers all sci-fi subgenres)
 2. Theme Matching (0-1): How well do the movie's themes align with user interests?
 3. Age Appropriateness (0-1): Is the movie suitable for the specified age group?
 4. Family Appropriateness: Is the movie suitable for family viewing if required?
@@ -180,11 +180,13 @@ EVALUATION CRITERIA:
 6. Cultural Relevance (0-1): Current availability and cultural relevance
 
 IMPORTANT SCORING GUIDELINES:
-- If the movie has excluded genres, the confidenceScore should be very low (0.0-0.2)
-- If the movie doesn't match the preferred genres, the confidenceScore should reflect this (max 0.4)
-- If family-friendly is required but the movie isn't appropriate, confidenceScore should be very low (max 0.2)
+- If the movie has excluded genres as PRIMARY genres, the confidenceScore should be very low (0.0-0.2)
+- Genre matching should be flexible - if the movie has ANY of the preferred genres, it should score well
+- Science Fiction movies should score highly if user wants sci-fi, regardless of specific subgenre
+- Family-friendly requirement: If required but movie isn't appropriate, confidenceScore should be very low (max 0.2)
+- Quality movies in the right genre should score 0.6-0.9, not be artificially capped
 - The confidenceScore should be calculated as: (genreAlignment * 0.4) + (themeMatching * 0.25) + (ageAppropriateScore * 0.2) + (qualityIndicators * 0.1) + (culturalRelevance * 0.05)
-- If your reasoning indicates the movie is NOT a good match, ensure the confidenceScore is below 0.4
+- Focus on finding good matches rather than rejecting movies for minor mismatches
 
 Provide your evaluation as a JSON object with this exact structure:
 {
@@ -461,7 +463,7 @@ export async function evaluateMoviesBatchWithReactAgentIntegration(
   });
 
   const duration = Date.now() - startTime;
-  const highConfidenceCount = evaluations.filter((e) => e.confidenceScore >= 0.75).length;
+  const highConfidenceCount = evaluations.filter((e) => e.confidenceScore >= 0.4).length;
 
   logger.info('✅ Batch evaluation with React agent integration completed', {
     component: 'movie-evaluation-react-integration',

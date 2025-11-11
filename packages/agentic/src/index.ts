@@ -40,6 +40,18 @@ async function runVideoRecommendationAgent(
   // Reset token tracker at the start of each run
   globalTokenTracker.reset();
 
+  // Set up global execution timeout (5 minutes)
+  const GLOBAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  const executionStartTime = Date.now();
+
+  const timeoutHandle = setTimeout(() => {
+    logger.error('💀 Global execution timeout reached - terminating workflow', {
+      timeoutMs: GLOBAL_TIMEOUT_MS,
+      executionTimeMs: Date.now() - executionStartTime,
+    });
+    throw new Error('Global execution timeout reached after 5 minutes');
+  }, GLOBAL_TIMEOUT_MS);
+
   // Create a logger wrapper that emits events for real-time streaming
   if (logEventEmitter) {
     // Listen to winston's log events instead of overriding methods
@@ -101,12 +113,17 @@ async function runVideoRecommendationAgent(
     const finalState = await compiledVideoRecommendationAgent.invoke(initialState, {
       recursionLimit: 50, // Increase from default 25 to handle batch processing
     } as { recursionLimit: number });
+
+    // Clear timeout since execution completed successfully
+    clearTimeout(timeoutHandle);
+
     logger.info('🎉 Video Recommendation Agent completed successfully', {
       totalSearchAttempts: finalState.searchAttemptNumber,
       finalRecommendationsCount: finalState.finalRecommendations.length,
       qualityGateStatus: finalState.qualityGatePassedSuccessfully
         ? 'PASSED'
         : 'COMPLETED_WITH_BEST_EFFORT',
+      executionTimeMs: Date.now() - executionStartTime,
     });
 
     // Display final recommendations
@@ -135,9 +152,13 @@ async function runVideoRecommendationAgent(
     // Return the final recommendations
     return finalState.finalRecommendations;
   } catch (error) {
+    // Clear timeout on error
+    clearTimeout(timeoutHandle);
+
     logger.error('💥 Video Recommendation Agent failed', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      executionTimeMs: Date.now() - executionStartTime,
     });
     throw error;
   }

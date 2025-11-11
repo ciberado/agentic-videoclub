@@ -147,11 +147,16 @@ export async function movieDiscoveryAndDataFetchingNode(
     }
   }
 
-  // Process queued links if we have them
+  // Process queued links if we have them - only process enough to fill the current batch
   if (updatedMovieLinksQueue.length > 0) {
+    // Calculate how many more movies we need for the current batch only
+    const moviesNeededForBatch = Math.max(0, batchOffset + batchSize - allMovies.length);
+    // Add a small buffer (max 5) to account for potential cache hits, but don't overdo it
+    const maxLinksToProcess = Math.min(moviesNeededForBatch + 5, batchSize);
+
     const linksToProcess = updatedMovieLinksQueue
       .filter((link) => !updatedProcessedUrls.has(link.url))
-      .slice(0, Math.min(batchSize * 2, 20)); // Process a reasonable batch
+      .slice(0, maxLinksToProcess); // Process only what we need for this batch
 
     if (linksToProcess.length > 0) {
       try {
@@ -159,6 +164,9 @@ export async function movieDiscoveryAndDataFetchingNode(
           nodeId,
           linksToProcess: linksToProcess.length,
           totalQueued: updatedMovieLinksQueue.length,
+          moviesNeeded: moviesNeededForBatch,
+          maxLinksToProcess,
+          strategy: 'batch-focused processing',
         });
 
         // Check cache first
@@ -176,6 +184,9 @@ export async function movieDiscoveryAndDataFetchingNode(
         let relatedMoviesExtracted = 0;
         let totalRelatedMoviesQueued = 0;
         const relatedMovieExtractionStartTime = Date.now();
+
+        // Set conservative limit for related movies to prevent explosive growth
+        const relatedMoviesLimit = Math.max(20, batchSize * 3);
 
         if (uncachedLinks.length > 0) {
           const movieDetails = await fetchPrimeVideoMoviesBatch(uncachedLinks);
@@ -195,11 +206,14 @@ export async function movieDiscoveryAndDataFetchingNode(
             await movieCache.setMovies(cacheData);
           }
 
-          // Extract related movies from fetched movie details
-          // These were already extracted during the fetchPrimeVideoMoviesBatch call
+          // Extract related movies from fetched movie details - but limit to prevent explosive growth
+          // Only extract related movies if we don't already have many in the queue
+          const relatedMoviesLimit = Math.max(20, batchSize * 3); // Conservative limit
           allMovieDetails.forEach((detail) => {
-            if (detail.relatedMovies && updatedMovieLinksQueue.length < MAX_QUEUE_SIZE) {
-              detail.relatedMovies.forEach((relatedMovie) => {
+            if (detail.relatedMovies && updatedMovieLinksQueue.length < relatedMoviesLimit) {
+              // Only take the first few related movies per movie to prevent explosion
+              const limitedRelatedMovies = detail.relatedMovies.slice(0, 3);
+              limitedRelatedMovies.forEach((relatedMovie) => {
                 // Normalize URL
                 const normalizedUrl = relatedMovie.url.startsWith('http')
                   ? relatedMovie.url
@@ -235,8 +249,9 @@ export async function movieDiscoveryAndDataFetchingNode(
 
         // For cached movies, we need to fetch their details to get related movies
         // since cached data doesn't include the related movies field
+        // But only if we don't already have enough in the queue
         for (const cachedUrl of cachedUrls) {
-          if (updatedMovieLinksQueue.length >= MAX_QUEUE_SIZE) break;
+          if (updatedMovieLinksQueue.length >= relatedMoviesLimit) break;
 
           try {
             const cachedLink = linksToProcess.find((link) => link.url === cachedUrl);
@@ -251,7 +266,9 @@ export async function movieDiscoveryAndDataFetchingNode(
             const movieDetail = await fetchPrimeVideoMovieDetails(cachedLink);
 
             if (movieDetail.relatedMovies) {
-              movieDetail.relatedMovies.forEach((relatedMovie) => {
+              // Limit related movies per cached movie too
+              const limitedRelatedMovies = movieDetail.relatedMovies.slice(0, 3);
+              limitedRelatedMovies.forEach((relatedMovie) => {
                 const normalizedUrl = relatedMovie.url.startsWith('http')
                   ? relatedMovie.url
                   : `https://www.primevideo.com${relatedMovie.url}`;
@@ -333,6 +350,37 @@ export async function movieDiscoveryAndDataFetchingNode(
           totalProcessed: updatedProcessedMovies.length,
           remainingQueued: updatedMovieLinksQueue.length,
         });
+
+        // Check if we now have enough movies for the current batch - if so, stop processing
+        const updatedAllMovies = updatedProcessedMovies.map((pm) => pm.movie);
+        if (updatedAllMovies.length >= batchOffset + batchSize) {
+          const currentBatch = updatedAllMovies.slice(batchOffset, batchOffset + batchSize);
+          logger.info('🎯 Batch complete after processing - stopping early', {
+            nodeId,
+            batchSize: currentBatch.length,
+            totalMoviesAvailable: updatedAllMovies.length,
+            reason: 'sufficient_movies_for_batch',
+          });
+
+          logNodeExecution(nodeId, 'discover_and_fetch_movie_batch', startTime, {
+            moviesDiscovered: updatedAllMovies.length,
+            currentBatchSize: currentBatch.length,
+            dataStructured: currentBatch.length > 0,
+            dataSource: 'prime-video',
+            completionReason: 'batch_filled',
+          });
+
+          return {
+            processedMovies: updatedProcessedMovies,
+            discoveredMoviesBatch: currentBatch,
+            movieBatchOffset: batchOffset,
+            movieBatchSize: batchSize,
+            movieLinksQueue: updatedMovieLinksQueue.slice(0, MAX_QUEUE_SIZE),
+            processedUrls: updatedProcessedUrls,
+            discoveryDepth: state.discoveryDepth || 0,
+            maxDiscoveryDepth: state.maxDiscoveryDepth || 2,
+          };
+        }
       } catch (error) {
         logger.error('❌ Failed to process movie links', {
           nodeId,

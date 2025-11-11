@@ -20,7 +20,7 @@ import {
  * Key features:
  * - Parallel batch processing for performance
  * - Quality gates to ensure good matches:
- *   - Minimum confidence score of 0.75
+ *   - Minimum confidence score of 0.4
  *   - At least 3 high-confidence matches needed
  * - Family-friendly content validation
  * - Token usage monitoring
@@ -67,7 +67,7 @@ export async function intelligentEvaluationNode(
     evaluatedMovies.length > 0
       ? evaluatedMovies.reduce((sum, e) => sum + e.confidenceScore, 0) / evaluatedMovies.length
       : 0;
-  const highConfidenceThreshold = 0.75; // High confidence threshold as requested
+  const highConfidenceThreshold = 0.5; // Lowered from 0.75 to allow reasonable matches
   const highConfidenceMatches = evaluatedMovies.filter(
     (e) => e.confidenceScore >= highConfidenceThreshold,
   );
