@@ -14,14 +14,38 @@ needed for its corresponding workflow node.
 - **Output**: Structured UserCriteria with enhanced genres, exclusions, themes, and search terms
 - **Used by**: `nodes/prompt-enhancement.ts`
 
-### `movie-evaluation-llm.ts`
+### `movie-evaluation-factory.ts` 🏭 **PRODUCTION FACTORY**
 
-- **Purpose**: Intelligent batch evaluation of movies against user preferences with TMDB enrichment
-- **Model**: Claude 3.5 Sonnet (superior reasoning for complex evaluations)
-- **Tools**: TMDB Movie Enrichment (rate limited to 10 calls per batch)
-- **Input**: Movie batch + enhanced user criteria
+- **Purpose**: Strategy Factory for movie evaluation with switchable strategies
+- **Pattern**: Factory design pattern for strategy instantiation
+- **Strategies**: Single-agent OR Pipeline architecture
+- **Configuration**: Set `MOVIE_EVALUATION_STRATEGY=single-agent|pipeline`
+- **Default**: `pipeline` (production approach)
+- **Features**: A/B testing, performance comparison, fallback mechanisms
+- **Input**: Movie batch + enhanced user criteria + optional strategy override
 - **Output**: MovieEvaluation objects with confidence scores and reasoning
 - **Used by**: `nodes/evaluation.ts`
+
+### `movie-evaluation-pipeline.ts` ⭐ **PRODUCTION STRATEGY**
+
+- **Purpose**: Multi-step pipeline with specialized React Agents (production approach)
+- **Model**: Claude 3.5 Sonnet (superior reasoning for complex evaluations)
+- **Architecture**: React Agent enrichment → Data processing → Evaluation → Validation
+- **Features**: Robust error handling, poster URL extraction, sophisticated fallbacks
+- **Pipeline Steps**: Enrichment, Processing, Evaluation, Validation
+- **Input**: Movie batch + enhanced user criteria
+- **Output**: MovieEvaluation objects with confidence scores and reasoning
+- **Used by**: `movie-evaluation-factory.ts` (default strategy)
+
+### `movie-evaluation-single-agent.ts` 🤖 **ALTERNATIVE STRATEGY**
+
+- **Purpose**: Single React agent approach (alternative/comparison)
+- **Model**: Claude 3.5 Sonnet with automatic TMDB tool calling
+- **Architecture**: Single React agent handles both enrichment and evaluation
+- **Status**: Available for A/B testing, not used by default
+- **Input**: Movie batch + enhanced user criteria
+- **Output**: MovieEvaluation objects with confidence scores and reasoning
+- **Used by**: `movie-evaluation-factory.ts` (when `MOVIE_EVALUATION_STRATEGY=single-agent`)
 
 ### `movie-normalization-llm.ts`
 

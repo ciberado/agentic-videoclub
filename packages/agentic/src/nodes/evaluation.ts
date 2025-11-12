@@ -1,5 +1,5 @@
 import logger from '../config/logger';
-import { evaluateMoviesBatchWithReactAgentIntegration } from '../services/movie-evaluation-llm-react-integration';
+import { evaluateMoviesBatch } from '../services/movie-evaluation-factory';
 import type { VideoRecommendationAgentState } from '../state/definition';
 import {
   logNodeStart,
@@ -90,11 +90,8 @@ export async function intelligentEvaluationNode(
     };
   }
 
-  // Use real LLM evaluation of the movie batch with React agent integration (includes poster URL extraction)
-  const evaluatedMovies = await evaluateMoviesBatchWithReactAgentIntegration(
-    moviesToEvaluate,
-    state.enhancedUserCriteria!,
-  );
+  // Use movie evaluation factory (strategy configurable via MOVIE_EVALUATION_STRATEGY env var)
+  const evaluatedMovies = await evaluateMoviesBatch(moviesToEvaluate, state.enhancedUserCriteria!);
 
   const averageScore =
     evaluatedMovies.length > 0
