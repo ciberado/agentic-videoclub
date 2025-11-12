@@ -8,7 +8,7 @@ $base-text-color: black;
 $base-text-size: 24pt;
 
 $base-headers-background: rgba(255, 231, 32, 0.86);
-$base-headers-color:#d75050;
+$base-headers-color: #d75050;
 
 $strong-color : orange;
 
@@ -21,7 +21,7 @@ $strong-color : orange;
     &.aspect-ratio-4-3 {
         font-size: $base-text-size * 0.7;
     }
-    
+
     /*
         General slide color, fonts, etc.
     */
@@ -41,10 +41,12 @@ $strong-color : orange;
         }
 
         strong {
-            color : $strong-color;
+            color: $strong-color;
         }
 
-        > h1, > h2, > h3 {
+        >h1,
+        >h2,
+        >h3 {
             font-family: "Lilita One", sans-serif;
             font-weight: 400;
             font-style: normal;
@@ -63,7 +65,8 @@ $strong-color : orange;
             list-style: none;
         }
 
-        > iframe, > video {
+        >iframe,
+        >video {
             width: 100%;
             height: 100%;
         }
@@ -81,37 +84,40 @@ $strong-color : orange;
 
     }
 
-        pre > code {
-            padding : 25px;
-            margin: 0 auto;
-            display: block;
-            width: 80%;
-            border: 2px solid silver;
-            border-radius: 10px;
-            background-color: #e9e9e9;
-            line-height: 1.2em;
-            max-height: 780px;
-            overflow: auto;
-        }
+    pre>code {
+        padding: 25px;
+        margin: 0 auto;
+        display: block;
+        width: 80%;
+        border: 2px solid silver;
+        border-radius: 10px;
+        background-color: #e9e9e9;
+        line-height: 1.2em;
+        max-height: 780px;
+        overflow: auto;
+    }
 
     .title {
         display: flex;
         flex-direction: column;
         justify-content: center;
-        
-        > h1 {
+
+        >h1 {
             font-size: 300%;
         }
-        > h1,
-        > h2 {
+
+        >h1,
+        >h2 {
             margin: 0;
             width: 80%;
             text-align: center;
         }
-        > h2 {
+
+        >h2 {
             padding-bottom: 20px;
         }
-        > p {
+
+        >p {
             color: color.adjust($base-text-color, $blackness: 20%);
             position: absolute;
             width: 90%;
@@ -122,7 +128,7 @@ $strong-color : orange;
 
     .curtain {
 
-        > h2 {
+        >h2 {
             display: flex;
             justify-content: center;
             align-items: center;
@@ -133,19 +139,19 @@ $strong-color : orange;
             bottom: 0;
             position: absolute;
             width: 100%;
-        }        
+        }
     }
 
     .agenda {
-        > ul {
+        >ul {
             display: flex;
-            flex-wrap: wrap;            
+            flex-wrap: wrap;
             width: 100%;
             margin: 0 0 0 2.5%;
             padding: 0;
         }
 
-        > ul > li {
+        >ul>li {
             width: 30%;
             min-height: 6em;
             margin: 0.5em;
@@ -157,20 +163,20 @@ $strong-color : orange;
 
 
     .blocks {
-        > p {
+        >p {
             margin: 0 100px 0 100px;
         }
 
-        > ul {
+        >ul {
             margin: $base-text-size*1.2 $base-text-size*2;
-            padding : 0;
+            padding: 0;
             display: grid;
             grid-auto-flow: column;
 
             li {
                 display: block;
                 margin: 20px;
-                
+
                 font-size: 21px;
                 text-align: center;
 
@@ -190,7 +196,7 @@ $strong-color : orange;
 
 
     .coverbg {
-        > div.block-image {
+        >div.block-image {
             position: absolute;
             top: 0;
             left: 0;
@@ -199,39 +205,43 @@ $strong-color : orange;
             z-index: -10;
             opacity: 1;
         }
-    
-        > div.block-image img {
+
+        >div.block-image img {
             object-fit: cover;
             height: 100%;
             width: 100%;
             opacity: 1;
         }
-    
-        &.fadedbg > div.block-image{
+
+        &.flipped>div.block-image {
+            transform: scaleX(-1);
+        }
+
+        &.fadedbg>div.block-image {
             filter: contrast(10%) brightness(180%);
         }
-    
-        &.blurredbg > div.block-image{
+
+        &.blurredbg>div.block-image {
             filter: blur(4px);
         }
-    
-        &.grayedbg > div.block-image{
+
+        &.grayedbg>div.block-image {
             filter: grayscale(100%);
         }
-        
-        &.huebg45 > div.block-image{
+
+        &.huebg45>div.block-image {
             filter: hue-rotate(45deg);
         }
-        
-        &.huebg90 > div.block-image{
+
+        &.huebg90>div.block-image {
             filter: hue-rotate(90deg);
         }
-        
-        &.huebg180 > div.block-image{
+
+        &.huebg180>div.block-image {
             filter: hue-rotate(180deg);
         }
-        
-        
+
+
     }
 
     .framed-illustration {
@@ -243,18 +253,19 @@ $strong-color : orange;
             grid-column: 1 / span 2;
         }
 
-        > div.block-image {
+        >div.block-image {
             overflow: hidden;
             margin: 0 1em 1em 1em;
         }
 
-        > div.block-image img {
+        >div.block-image img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
-        > p, > ul {
+        >p,
+        >ul {
             margin: 0 1em;
         }
 
@@ -263,13 +274,14 @@ $strong-color : orange;
         }
 
         &.right {
-            > div.block-image {
-                grid-row : 2;
+            >div.block-image {
+                grid-row: 2;
                 grid-column: 2;
             }
 
-            > p, > ul {
-                grid-row : 2;
+            >p,
+            >ul {
+                grid-row: 2;
                 grid-column: 1;
             }
         }
@@ -278,37 +290,41 @@ $strong-color : orange;
 
     .illustration {
 
-        > div.block-image {
+        >div.block-image {
             position: absolute;
             top: 0;
             width: 50%;
-            overflow : hidden;
+            overflow: hidden;
             padding: 0;
             margin: 0;
-            
+
         }
 
-        > div.block-image img {
+        >div.block-image img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
-        > p, > ul, > .content-group {
+        >p,
+        >ul,
+        >.content-group {
             margin-left: 50%;
             padding: 0 2em;
         }
 
-        > ul > li {
+        >ul>li {
             margin-bottom: 1em;
         }
 
         &.right {
-            > div.block-image {
+            >div.block-image {
                 left: 50%;
             }
 
-            > p, > ul,  > .content-group {
+            >p,
+            >ul,
+            >.content-group {
                 margin-left: 0;
                 width: 50%;
             }
@@ -316,66 +332,68 @@ $strong-color : orange;
     }
 
     .iconlist {
-        > ul > li {
+        >ul>li {
             display: grid;
             grid-template-columns: 110px;
         }
 
-        > ul > li > img {
+        >ul>li>img {
             grid-column: 1;
             grid-row: 1 / span 2;
         }
 
-        > ul > li > strong {
+        >ul>li>strong {
             grid-column: 2;
             grid-row: 1;
         }
 
-        > ul > li > span {
+        >ul>li>span {
             grid-column: 2;
             grid-row: 2;
             color: color.scale($base-text-color, $lightness: 50%);
             font-size: 80%;
         }
 
-        
+
     }
 
     .powerlist {
-        > ul {
+        >ul {
             counter-reset: powerlist-list-counter;
         }
 
-        > ul > li {
+        >ul>li {
             counter-increment: powerlist-list-counter;
         }
 
-        > ul > li::before {
+        >ul>li::before {
             content: "0" counter(powerlist-list-counter);
             font-weight: bold;
             font-size: 3rem;
             margin-right: 0.5rem;
             line-height: 1;
-        }        
-    }
-
-    .glassed {
-        p, ul, pre {
-            opacity : 0.8;
         }
     }
 
-    .faded > div.block-image{
+    .glassed {
+
+        p,
+        ul,
+        pre {
+            opacity: 0.8;
+        }
+    }
+
+    .faded>div.block-image {
         filter: contrast(10%) brightness(180%);
     }
 
-    .blurred > div.block-image{
+    .blurred>div.block-image {
         filter: blur(4px);
     }
 
-    .grayed > div.block-image{
+    .grayed>div.block-image {
         filter: grayscale(100%);
-    }    
+    }
 
 }
-

@@ -30,7 +30,9 @@
 .slidedeck section strong {
   color: orange;
 }
-.slidedeck section > h1, .slidedeck section > h2, .slidedeck section > h3 {
+.slidedeck section > h1,
+.slidedeck section > h2,
+.slidedeck section > h3 {
   font-family: "Lilita One", sans-serif;
   font-weight: 400;
   font-style: normal;
@@ -46,7 +48,8 @@
 .slidedeck section ul {
   list-style: none;
 }
-.slidedeck section > iframe, .slidedeck section > video {
+.slidedeck section > iframe,
+.slidedeck section > video {
   width: 100%;
   height: 100%;
 }
@@ -160,6 +163,9 @@
   width: 100%;
   opacity: 1;
 }
+.slidedeck .coverbg.flipped > div.block-image {
+  transform: scaleX(-1);
+}
 .slidedeck .coverbg.fadedbg > div.block-image {
   filter: contrast(10%) brightness(180%);
 }
@@ -194,7 +200,8 @@
   height: 100%;
   object-fit: cover;
 }
-.slidedeck .framed-illustration > p, .slidedeck .framed-illustration > ul {
+.slidedeck .framed-illustration > p,
+.slidedeck .framed-illustration > ul {
   margin: 0 1em;
 }
 .slidedeck .framed-illustration br {
@@ -204,7 +211,8 @@
   grid-row: 2;
   grid-column: 2;
 }
-.slidedeck .framed-illustration.right > p, .slidedeck .framed-illustration.right > ul {
+.slidedeck .framed-illustration.right > p,
+.slidedeck .framed-illustration.right > ul {
   grid-row: 2;
   grid-column: 1;
 }
@@ -221,7 +229,9 @@
   height: 100%;
   object-fit: cover;
 }
-.slidedeck .illustration > p, .slidedeck .illustration > ul, .slidedeck .illustration > .content-group {
+.slidedeck .illustration > p,
+.slidedeck .illustration > ul,
+.slidedeck .illustration > .content-group {
   margin-left: 50%;
   padding: 0 2em;
 }
@@ -231,7 +241,9 @@
 .slidedeck .illustration.right > div.block-image {
   left: 50%;
 }
-.slidedeck .illustration.right > p, .slidedeck .illustration.right > ul, .slidedeck .illustration.right > .content-group {
+.slidedeck .illustration.right > p,
+.slidedeck .illustration.right > ul,
+.slidedeck .illustration.right > .content-group {
   margin-left: 0;
   width: 50%;
 }
@@ -266,7 +278,9 @@
   margin-right: 0.5rem;
   line-height: 1;
 }
-.slidedeck .glassed p, .slidedeck .glassed ul, .slidedeck .glassed pre {
+.slidedeck .glassed p,
+.slidedeck .glassed ul,
+.slidedeck .glassed pre {
   opacity: 0.8;
 }
 .slidedeck .faded > div.block-image {

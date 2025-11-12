@@ -1,45 +1,130 @@
 [](.coverbg)
 
-# Modelos, agentes, MCPs y Javascript ¿Qué puede salir mal?
+![Welcome to the Zaragoza's Community Day](images/welcome.png)
 
-![El Alma del Ebro Sculpture in Zaragoza, Spain , by Pau Sabaté, https://www.pexels.com/photo/el-alma-del-ebro-sculpture-in-zaragoza-spain-13562058/](https://images.pexels.com/photos/13562058/pexels-photo-13562058.jpeg?cs=tinysrgb&w=1920&h=10800&dpr=1)
-
-[](.coverbg)
+[](#javi,.coverbg)
 
 ### Javi Moreno
 
 ![](images/jeff-smiling.jpg)
 
-[](.coverbg)
+[](#ntt-data,.no-header)
 
 ### NTT DATA
 
-[](.coverbg)
+![NTT DATA logo](images/ntt/ntt/logo-white/GlobalLogo_NTTDATA_White_RGB.png)
 
-### UPC School
+::: Notes
 
-[](.coverbg)
+Comenta que somos sponsor y que es bien.
+
+:::
+
+[](#upc,.no-header)
+
+![UPC Logo](images/upc.png)
+
+::: Notes
+
+Comenta que también somos sponsors y que es súper bien.  
+Que miren la bolsa y los cursos.  
+Y que no sé a quién voy a pasar los tickets de gastos.
+
+[](#title,.coverbg)
+
+# Modelos, agentes, MCPs y Javascript ¿Qué puede salir mal?
+
+![El Alma del Ebro Sculpture in Zaragoza, Spain , by Pau Sabaté, https://www.pexels.com/photo/el-alma-del-ebro-sculpture-in-zaragoza-spain-13562058/](https://images.pexels.com/photos/13562058/pexels-photo-13562058.jpeg?cs=tinysrgb&w=1920&h=10800&dpr=1)
+
+::: Notes
+
+Cuenta cómo dijiste "con lo bien que te lo pasaste el año pasado, qué tontería podrías presentar este?"  
+Llevas trabajando meses creando agentes en el trabajo.
+Ya sería hora de hacer algo útil con lo que has aprendido.  
+Y quizá de ahorrar algún momento de confusión.
+
+:::
+
+[](#free-time,.coverbg)
+
+### Free time!
+
+![High-Angle Shot of a Man Lying on Snow-Covered Ground, by Orientation, https://www.pexels.com/photo/high-angle-shot-of-a-man-lying-on-snow-covered-ground-6667140/](https://images.pexels.com/photos/6667140/pexels-photo-6667140.jpeg)
+
+::: Notes
+
+No tengo mucho tiempo libre, y cuando lo tengo pienso ¡descansa!  
+Y me quiero poner una peli en Prime, y entonces
+
+:::
+
+[](#prime,.coverbg)
+
+![Prime Video](images/prime.png)
+
+::: Notes
+
+Una hora después sigo en el scrolling infernal sin solución de continuidad.  
+Enfadado y con sueño. A dormir.
+
+:::
+
+[](#dance-intro,.coverbg.header-left)
 
 ### Dance course
 
-![People Holding Hands, by Rene Terp, https://www.pexels.com/photo/people-holding-hands-14300938/](https://images.pexels.com/photos/14300938/pexels-photo-14300938.jpeg)
+![Simple dance steps](images/dance-1.jpg)
 
-### What an Agent is?
+[](#agent-definition,.coverbg.no-header.grayedbg)
+
+### Definition of "Agent"
+
+![A Man Holding a Newspaper , by Pavel Danilyuk, https://www.pexels.com/photo/a-man-holding-a-newspaper-7519018/](https://images.pexels.com/photos/7519018/pexels-photo-7519018.jpeg)
+
+> Whatever my brown balls say
+
+Jim Smith, Marketing director
+
+::: Notes
 
 - Lo que digan hoy mis huevos morenos
 - Un programa autónomo que resuelve una tarea planificando y tomando decisiones inteligentes
 
-### Why Javascript?
+:::
 
-- Por ser un lenguaje universal
+[](#real-definition,.coverbg.flipped.no-header)
 
-### Let's tackle my headache
+### Definition of "Agent", take 2
 
-- No tengo mucho tiempo libre
-- Pero de vez en cuando quiero ver una peli
-- Abro Prime Video...
-- ...y paso la siguiente hora haciendo scroll infinito buscando algo interesante
-- Vamos a solucionarlo
+![Woman in Discussing A Lesson Plan, by Orientation, https://www.pexels.com/photo/woman-in-discussing-a-lesson-plan-3772511/](https://images.pexels.com/photos/3772511/pexels-photo-3772511.jpeg)
+
+- **Autonomous application** that uses generative AI to complete tasks
+- **Takes actions** on its own - not just answering questions, but using tools, making decisions, running workflows
+- **Has goals** - works toward objectives with minimal human supervision
+- **Uses reasoning** - breaks down complex tasks into steps and adapts based on results
+
+[](#bedrock,.illustration.header-right)
+
+### Amazon Bedrock
+
+![Amazon Bedrock Logo](images/bedrock.png)
+
+Amazon Bedrock is a fully managed service offering **serverless** access to foundation models from **Anthropic**, Meta, and Amazon, etc. with no infrastructure management, pay-per-use pricing, and **enterprise-grade** security.
+
+::: Notes
+
+Comenta que ahora mismo los modelos están subvencionados por esas hermanitas de la caridad que son los VC y que al igual que Uber por un motivo u otro los precios subirán en los próximos años. Aprovechemos mientras podamos!
+
+Precios Sonnet: $3 por millón input, $15 por millón output
+Precios Haiku: $1 por millon input,$5 por millón output
+
+:::
+
+[](#torvalds,.coverbg.header-down)
+
+### Show me the code
+
+![Linus Torvalds](images/linus.png)
 
 [](#the-workflow,.partial)
 
@@ -49,7 +134,7 @@
 // Workflow for movie recommendation
 async function movieWorkflow() {
     const «userPreferences» = await askUserWhatToWatch();
-    const «refinedCriteria» = await refineCriteriaNode(userPreferences);
+    const «refinedCriteria» = await refineCriteriaAgent(userPreferences);
 
     const «movies» = await movieDiscoveryAgent();
     let «candidates» = [];

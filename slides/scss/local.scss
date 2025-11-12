@@ -1,8 +1,138 @@
 .slidedeck.speaker section.active div.slide-notes {
-	font-size: 80pt;
+    font-size: 80pt;
 
     li {
         margin: 40px;
+    }
+
+}
+
+.slidedeck section {
+
+    h3 {
+        font-size: 60pt;
+    }
+
+    &.no-header {
+
+        h1,
+        h2,
+        h3 {
+            display: none;
+        }
+    }
+
+    &.header-left {
+
+        h1,
+        h2,
+        h3 {
+            left: 0;
+            width: 60%;
+            margin-left: 0;
+        }
+    }
+
+    &.header-right {
+
+        h1,
+        h2,
+        h3 {
+            left: 60%;
+            width: 40%;
+        }
+    }
+
+    &.header-down {
+
+        h1,
+        h2,
+        h3 {
+            top: 75%;
+            text-align: center;
+        }
+    }
+
+}
+
+#javi {
+    h3 {
+        width: 40%;
+        left: 60%;
+    }
+}
+
+
+#ntt-data {
+    background-color: #0071bb;
+
+    .block-image {
+        margin-top: 10%;
+        text-align: center;
+    }
+}
+
+#upc {
+    .block-image {
+        margin-top: 10%;
+        text-align: center;
+    }
+}
+
+#title {
+    h1 {
+        float: left;
+        margin: 0;
+        width: 60%;
+        font-size: 80pt;
+        top: 1em;
+    }
+}
+
+
+#agent-definition {
+
+    >blockquote {
+        color: #eee;
+        text-shadow: 0 4px 4px #000000ff, 0 2px 6px #00000080;
+        font-weight: bold;
+        max-width: 60%;
+        margin-left: 200px;
+        font-style: italic;
+        font-size: 70pt;
+    }
+
+    >p {
+        color: #eee;
+        text-shadow: 0 4px 4px #000000ff, 0 2px 6px #00000080;
+        font-weight: bold;
+        max-width: 60%;
+        margin-left: 200px;
+        font-style: italic;
+        font-size: 30pt;
+    }
+
+}
+
+#real-definition {
+    ul {
+        left: 50%;
+        position: relative;
+        top: 0;
+        color: white;
+        font-size: 40pt;
+        width: 50%;
+        background-color: rgba(0, 0, 0, 0.15);
+        padding: 1em;
+        margin: 0;
+        height: 100%;
+    }
+}
+
+#bedrock {
+    p {
+        margin: 3em 1.5em 0 50%;
+        font-size: 28pt;
     }
 }
 
@@ -15,13 +145,14 @@
         .snippet {
             animation: highlight 0.5s ease-in-out forwards;
         }
-    }    
+    }
 }
 
 @keyframes highlight {
     from {
         background-color: transparent;
     }
+
     to {
         background-color: #ffeb3b;
     }
