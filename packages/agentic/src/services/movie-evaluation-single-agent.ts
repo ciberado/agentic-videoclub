@@ -11,22 +11,78 @@ import { tmdbEnrichmentService } from './tmdb-enrichment';
 import { tmdbEnrichmentTool } from './tmdb-enrichment-tool';
 
 /**
- * Movie Evaluation LLM Service - LangGraph Agent Integration
+ * Extract poster URL from TMDB enrichment response text
+ */
+function extractPosterUrlFromEnrichment(enrichmentText: string): string | null {
+  try {
+    // Look for TMDB tool response in the enrichment text
+    const tmdbResponseMatch = enrichmentText.match(/\{[^}]*"posterUrl"\s*:\s*"([^"]+)"[^}]*\}/);
+    if (tmdbResponseMatch && tmdbResponseMatch[1]) {
+      return tmdbResponseMatch[1];
+    }
+
+    // Alternative pattern for successful TMDB responses
+    const successResponseMatch = enrichmentText.match(
+      /"success":\s*true[^}]*"posterUrl":\s*"([^"]+)"/,
+    );
+    if (successResponseMatch && successResponseMatch[1]) {
+      return successResponseMatch[1];
+    }
+
+    return null;
+  } catch (error) {
+    logger.debug('Failed to extract poster URL from enrichment text', {
+      component: 'movie-evaluation-single-agent',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/**
+ * Movie Evaluation LLM Service - Traditional LangGraph Agent Approach
  *
- * This service uses a modern LangGraph agent to evaluate movies with the help of an LLM.
- * The agent can automatically use the TMDB enrichment tool if it needs more movie data.
+ * This service provides a traditional single-agent approach to movie evaluation using
+ * LangChain's createAgent with automatic tool calling capabilities.
+ *
+ * STATUS: Alternative strategy - not currently used in production
+ * CURRENT PRODUCTION SERVICE: movie-evaluation-pipeline.ts
+ * ACCESS: Available via movie-evaluation-factory.ts by setting MOVIE_EVALUATION_STRATEGY=single-agent
+ *
+ * PURPOSE OF KEEPING THIS FILE:
+ * - Alternative strategy for single-agent approach
+ * - A/B testing and performance comparison
+ * - Fallback strategy for production system
+ * - Educational example of single-agent vs multi-step pipeline approaches
+ *
+ * ARCHITECTURE:
+ * - Uses LangChain's createAgent API (built on LangGraph) for agent setup
+ * - Single React agent that autonomously decides when to call TMDB enrichment tool
+ * - Direct tool access pattern with automatic LLM reasoning
+ * - Simpler but less robust than the pipeline approach
  *
  * HOW IT WORKS:
- * - Uses LangChain's createAgent API (built on LangGraph) for agent setup
- * - The agent decides on its own when to call the TMDB enrichment tool
- * - LangGraph manages conversation state and tool execution
- * - Handles errors and retries automatically
+ * - The React agent decides on its own when to call the TMDB enrichment tool
+ * - LangGraph manages conversation state and tool execution automatically
+ * - Handles errors and retries automatically within the agent framework
+ * - Single prompt handles both enrichment decisions and final evaluation
+ *
+ * COMPARISON TO PIPELINE APPROACH:
+ * + Simpler architecture with fewer moving parts
+ * + Automatic tool selection and usage by the React agent
+ * + Less code complexity and maintenance overhead
+ * + Efficient poster URL extraction from tool responses
+ * - Less explicit control over enrichment process
+ * - Less sophisticated error handling and fallbacks
+ * - Less detailed scoring guidelines in prompts
  *
  * FEATURES:
  * - Modern agent pattern with LangChain v1
- * - Automatic TMDB data enrichment
+ * - Automatic TMDB data enrichment based on agent decisions
+ * - Poster URL extraction from TMDB tool responses
  * - Evaluates movies on genre, theme, quality, and cultural relevance
  * - No manual tool orchestration needed
+ * - Comprehensive token usage tracking
  */
 
 // Zod schema for movie evaluation output validation
@@ -80,7 +136,7 @@ function createMovieEvaluationAgent(): ReturnType<typeof createAgent> {
 
   logger.debug('🧠 Initializing movie evaluation agent with LangGraph', {
     modelId,
-    component: 'movie-evaluation-llm',
+    component: 'movie-evaluation-single-agent',
     toolsAvailable: ['tmdb_movie_enrichment'],
   });
 
@@ -238,7 +294,7 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       MovieEvaluationSchema.parse(parsedResponse);
     } catch (parseError) {
       logger.error('❌ Failed to parse agent response', {
-        component: 'movie-evaluation-llm',
+        component: 'movie-evaluation-single-agent',
         movieTitle: movie.title,
         responseText: responseText.substring(0, 200),
         parseError: parseError instanceof Error ? parseError.message : String(parseError),
@@ -257,8 +313,46 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     // Track token usage for this evaluation
     globalTokenTracker.addUsage(input.length, responseText.length, 'movie-evaluation');
 
+    // Extract poster URL from all messages in the agent conversation (TMDB tool calls occur in intermediate messages)
+    if (!movie.posterUrl) {
+      let extractedPosterUrl: string | null = null;
+
+      // Check all messages for TMDB tool responses containing poster URLs
+      if (response.messages && Array.isArray(response.messages)) {
+        for (const message of response.messages) {
+          const messageContent =
+            typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+
+          extractedPosterUrl = extractPosterUrlFromEnrichment(messageContent);
+          if (extractedPosterUrl) {
+            break; // Found a poster URL, stop looking
+          }
+        }
+      }
+
+      // Fallback: check the final response text as well
+      if (!extractedPosterUrl) {
+        extractedPosterUrl = extractPosterUrlFromEnrichment(responseText);
+      }
+
+      if (extractedPosterUrl) {
+        movie.posterUrl = extractedPosterUrl;
+        logger.debug('📸 Poster URL extracted from agent conversation', {
+          component: 'movie-evaluation-single-agent',
+          movieTitle: movie.title,
+          posterUrl: extractedPosterUrl,
+        });
+      } else {
+        logger.debug('⚠️ No poster URL found in agent conversation', {
+          component: 'movie-evaluation-single-agent',
+          movieTitle: movie.title,
+          messagesChecked: response.messages?.length || 0,
+        });
+      }
+    }
+
     logger.debug('🎯 Agent movie evaluation completed', {
-      component: 'movie-evaluation-llm',
+      component: 'movie-evaluation-single-agent',
       movieTitle: movie.title,
       confidenceScore: parsedResponse.confidenceScore.toFixed(2),
       processingTime: `${processingTime}ms`,
@@ -267,6 +361,7 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
       genreAlignment: parsedResponse.genreAlignment.toFixed(2),
       themeMatching: parsedResponse.themeMatching.toFixed(2),
       familyAppropriate: parsedResponse.familyAppropriate,
+      hasPoster: !!movie.posterUrl,
     }); // Create the final MovieEvaluation object
     const movieEvaluation: MovieEvaluation = {
       movie,
@@ -278,7 +373,7 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.`;
     return movieEvaluation;
   } catch (error) {
     logger.error('❌ Agent movie evaluation failed', {
-      component: 'movie-evaluation-llm',
+      component: 'movie-evaluation-single-agent',
       movieTitle: movie.title,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -301,14 +396,14 @@ export async function evaluateMoviesBatch(
   const isTestEnvironment =
     process.env.NODE_ENV === 'test' ||
     process.env.JEST_WORKER_ID !== undefined ||
-    typeof (global as any).testSetupLogged !== 'undefined';
+    typeof (global as Record<string, unknown>).testSetupLogged !== 'undefined';
 
   const testMovieLimit = parseInt(process.env.TEST_MOVIE_LIMIT || '3');
   const moviesToEvaluate = isTestEnvironment ? movies.slice(0, testMovieLimit) : movies;
 
   if (isTestEnvironment && movies.length > testMovieLimit) {
     console.log('🧪 Test mode: limiting movie evaluation', {
-      component: 'movie-evaluation-llm',
+      component: 'movie-evaluation-single-agent',
       originalBatchSize: movies.length,
       limitedBatchSize: moviesToEvaluate.length,
       testMovieLimit,
@@ -316,7 +411,7 @@ export async function evaluateMoviesBatch(
       JEST_WORKER_ID: process.env.JEST_WORKER_ID,
     });
     logger.info('🧪 Test mode: limiting movie evaluation', {
-      component: 'movie-evaluation-llm',
+      component: 'movie-evaluation-single-agent',
       originalBatchSize: movies.length,
       limitedBatchSize: moviesToEvaluate.length,
       testMovieLimit,
@@ -324,8 +419,8 @@ export async function evaluateMoviesBatch(
   }
 
   const startTime = Date.now();
-  logger.info('🎬 Starting parallel batch movie evaluation', {
-    component: 'movie-evaluation-llm',
+  logger.info('🎬 Starting movie evaluation batch', {
+    component: 'movie-evaluation-single-agent',
     batchSize: moviesToEvaluate.length,
     userGenres: userCriteria.enhancedGenres,
     familyFriendly: userCriteria.familyFriendly,
@@ -340,7 +435,7 @@ export async function evaluateMoviesBatch(
     movie: Movie;
     index: number;
   };
-  type EvaluationFailure = { success: false; error: any; movie: Movie; index: number };
+  type EvaluationFailure = { success: false; error: Error; movie: Movie; index: number };
   type EvaluationResult = EvaluationSuccess | EvaluationFailure;
 
   // Process all movies in parallel using Promise.allSettled for resilient error handling
@@ -349,7 +444,7 @@ export async function evaluateMoviesBatch(
       try {
         const evaluation = await evaluateMovie(movie, userCriteria);
         logger.debug('🎯 Movie evaluation completed', {
-          component: 'movie-evaluation-llm',
+          component: 'movie-evaluation-single-agent',
           movieIndex: index,
           title: evaluation.movie.title,
           confidenceScore: evaluation.confidenceScore.toFixed(2),
@@ -358,12 +453,17 @@ export async function evaluateMoviesBatch(
         return { success: true, evaluation, movie, index };
       } catch (error) {
         logger.warn('⚠️ Movie evaluation failed', {
-          component: 'movie-evaluation-llm',
+          component: 'movie-evaluation-single-agent',
           movieIndex: index,
           title: movie.title,
           error: error instanceof Error ? error.message : String(error),
         });
-        return { success: false, error, movie, index };
+        return {
+          success: false,
+          error: error instanceof Error ? error : new Error(String(error)),
+          movie,
+          index,
+        };
       }
     },
   );
@@ -373,7 +473,7 @@ export async function evaluateMoviesBatch(
 
   // Extract successful evaluations and log failures
   const evaluatedMovies: MovieEvaluation[] = [];
-  const failures: Array<{ movie: Movie; error: any; index: number }> = [];
+  const failures: Array<{ movie: Movie; error: Error; index: number }> = [];
 
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
@@ -405,7 +505,7 @@ export async function evaluateMoviesBatch(
   const highConfidenceCount = evaluatedMovies.filter((e) => e.confidenceScore >= 0.8).length;
 
   logger.info('📊 Parallel batch movie evaluation completed', {
-    component: 'movie-evaluation-llm',
+    component: 'movie-evaluation-single-agent',
     processingTime: `${processingTime}ms`,
     totalAttempted: moviesToEvaluate.length,
     successfulEvaluations: successCount,
@@ -421,7 +521,7 @@ export async function evaluateMoviesBatch(
   // Log failure summary if there were any failures
   if (failures.length > 0) {
     logger.warn('🚫 Evaluation failures summary', {
-      component: 'movie-evaluation-llm',
+      component: 'movie-evaluation-single-agent',
       failureCount: failures.length,
       failedTitles: failures.map((f) => f.movie.title).slice(0, 5), // Show first 5 failed titles
       totalFailed: failures.length,
