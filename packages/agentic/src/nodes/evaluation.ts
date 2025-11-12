@@ -48,18 +48,51 @@ export async function intelligentEvaluationNode(
     userCriteria: state.enhancedUserCriteria,
   });
 
+  // Filter out already evaluated movies to prevent duplicates
+  const alreadyEvaluated = state.allAcceptableCandidates || [];
+  const evaluatedMovieKeys = new Set(
+    alreadyEvaluated.map(
+      (evaluation) => `${evaluation.movie.title.toLowerCase().trim()}_${evaluation.movie.year}`,
+    ),
+  );
+
+  const moviesToEvaluate = state.discoveredMoviesBatch.filter((movie) => {
+    const movieKey = `${movie.title.toLowerCase().trim()}_${movie.year}`;
+    return !evaluatedMovieKeys.has(movieKey);
+  });
+
+  const duplicatesFiltered = state.discoveredMoviesBatch.length - moviesToEvaluate.length;
+
   logger.info('🧠 Starting intelligent batch evaluation', {
     nodeId,
-    batchSize: state.discoveredMoviesBatch.length,
+    originalBatchSize: state.discoveredMoviesBatch.length,
+    duplicatesFiltered,
+    moviesToEvaluate: moviesToEvaluate.length,
     targetGenres: state.enhancedUserCriteria?.enhancedGenres,
     familyFriendly: state.enhancedUserCriteria?.familyFriendly,
     evaluationThemes: state.enhancedUserCriteria?.preferredThemes,
-    batchTitles: state.discoveredMoviesBatch.map((m) => m.title),
+    batchTitles: moviesToEvaluate.map((m) => m.title),
   });
+
+  // Skip LLM evaluation if no new movies to evaluate
+  if (moviesToEvaluate.length === 0) {
+    logger.info('⚡ All movies in batch already evaluated - skipping LLM evaluation', {
+      nodeId,
+      duplicatesSkipped: duplicatesFiltered,
+    });
+
+    return {
+      evaluatedMoviesBatch: [],
+      allAcceptableCandidates: alreadyEvaluated,
+      qualityGatePassedSuccessfully: alreadyEvaluated.length >= 3,
+      highConfidenceMatchCount: alreadyEvaluated.filter((e) => e.confidenceScore >= 0.65).length,
+      movieBatchOffset: (state.movieBatchOffset || 0) + (state.movieBatchSize || 10),
+    };
+  }
 
   // Use real LLM evaluation of the movie batch with React agent integration (includes poster URL extraction)
   const evaluatedMovies = await evaluateMoviesBatchWithReactAgentIntegration(
-    state.discoveredMoviesBatch,
+    moviesToEvaluate,
     state.enhancedUserCriteria!,
   );
 
@@ -88,9 +121,15 @@ export async function intelligentEvaluationNode(
     evaluatedMovies.length,
   );
 
+  // Add high-confidence matches to all acceptable candidates
+  const allAcceptableCandidates = state.allAcceptableCandidates || [];
+  const updatedAcceptableCandidates = [...allAcceptableCandidates, ...highConfidenceMatches];
+
   logger.info('📊 Intelligent evaluation completed', {
     nodeId,
-    totalMoviesEvaluated: evaluatedMovies.length,
+    originalBatchSize: state.discoveredMoviesBatch.length,
+    duplicatesFiltered,
+    newMoviesEvaluated: evaluatedMovies.length,
     averageConfidenceScore: averageScore.toFixed(2),
     highConfidenceMatches: highConfidenceMatches.length,
     qualityGateStatus: qualityGatePassed ? 'PASSED' : 'FAILED',
@@ -101,19 +140,19 @@ export async function intelligentEvaluationNode(
         ? evaluatedMovies.sort((a, b) => b.confidenceScore - a.confidenceScore)[0]?.movie.title
         : 'none',
     llmModel: 'claude-3.5-sonnet',
+    totalAcceptableCandidates: updatedAcceptableCandidates.length,
   });
 
   logNodeExecution(nodeId, 'evaluate_movie_batch_quality', startTime, {
+    originalBatchSize: state.discoveredMoviesBatch.length,
+    duplicatesFiltered,
     moviesEvaluated: evaluatedMovies.length,
     averageScore: averageScore.toFixed(2),
     highConfidenceCount: highConfidenceMatches.length,
     qualityGatePassed,
     evaluationQuality: 'llm-powered',
+    totalAcceptableCandidates: updatedAcceptableCandidates.length,
   });
-
-  // Add high-confidence matches to all acceptable candidates
-  const allAcceptableCandidates = state.allAcceptableCandidates || [];
-  const updatedAcceptableCandidates = [...allAcceptableCandidates, ...highConfidenceMatches];
 
   // Update batch offset for next iteration
   const currentOffset = state.movieBatchOffset || 0;
