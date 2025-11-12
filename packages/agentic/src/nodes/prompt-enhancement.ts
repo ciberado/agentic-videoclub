@@ -63,6 +63,12 @@ export async function promptEnhancementNode(
       searchTermsGenerated: enhancedCriteria.searchTerms.length,
     });
 
+    // Emit the enhancement data as a special log message for the webapp
+    logger.info('🎯 ENHANCEMENT_DATA', {
+      nodeId,
+      enhancementData: enhancedCriteria,
+    });
+
     logNodeExecution(nodeId, 'enhance_user_input', startTime, {
       enhancedGenres: enhancedCriteria.enhancedGenres,
       excludeGenres: enhancedCriteria.excludeGenres,

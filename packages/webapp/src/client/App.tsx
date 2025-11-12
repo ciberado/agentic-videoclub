@@ -1,7 +1,13 @@
 import { AppShell, Container, Title, Paper, Stack, Group, Badge, Text } from '@mantine/core';
 import React, { useState, useMemo } from 'react';
 
-import { UserRequirements, WorkflowStatus, Movie, LogEvent } from '../shared/types';
+import {
+  UserRequirements,
+  WorkflowStatus,
+  Movie,
+  LogEvent,
+  EnhancedUserCriteria,
+} from '../shared/types';
 
 import NodeVisualization from './components/NodeVisualization';
 import ProgressLog from './components/ProgressLog';
@@ -13,6 +19,7 @@ const App: React.FC = () => {
   const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [logs, setLogs] = useState<LogEvent[]>([]);
+  const [enhancedCriteria, setEnhancedCriteria] = useState<EnhancedUserCriteria | null>(null);
 
   // Memoize WebSocket URL to prevent unnecessary reconnections
   const websocketUrl = useMemo((): string => {
@@ -70,6 +77,7 @@ const App: React.FC = () => {
         startTime: new Date(),
       });
       setRecommendations([]);
+      setEnhancedCriteria(null); // Clear previous enhancement data
     },
     onWorkflowStatus: (data) => {
       console.log('[APP] onWorkflowStatus', data);
@@ -136,6 +144,14 @@ const App: React.FC = () => {
         };
       });
       setRecommendations(data.recommendations);
+    },
+    onEnhancementComplete: (data) => {
+      console.log('[APP] onEnhancementComplete', data);
+      console.log(
+        '[APP] Enhancement criteria received:',
+        JSON.stringify(data.enhancement, null, 2),
+      );
+      setEnhancedCriteria(data.enhancement);
     },
     onLogEvent: (logEvent) => {
       // Optionally log all log events
@@ -208,6 +224,7 @@ const App: React.FC = () => {
                 onSubmit={handleStartWorkflow}
                 onCancel={handleCancelWorkflow}
                 isLoading={workflowStatus?.status === 'running'}
+                enhancedCriteria={enhancedCriteria}
               />
             </Paper>
 

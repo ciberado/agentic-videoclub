@@ -13,7 +13,7 @@ import { movieDiscoveryAndDataFetchingNode } from './nodes/movie-discovery';
 import { promptEnhancementNode } from './nodes/prompt-enhancement';
 import { shouldContinueSearching } from './routing/flow-control';
 import { VideoRecommendationAgentState } from './state/definition';
-import type { MovieEvaluation } from './types';
+import type { MovieEvaluation, UserCriteria } from './types';
 import { globalTokenTracker } from './utils/token-tracker';
 
 // ===== LANGGRAPH WORKFLOW DEFINITION =====
@@ -36,7 +36,7 @@ const compiledVideoRecommendationAgent = videoRecommendationWorkflow.compile();
 async function runVideoRecommendationAgent(
   userInput: string,
   logEventEmitter?: EventEmitter,
-): Promise<MovieEvaluation[]> {
+): Promise<{ recommendations: MovieEvaluation[]; enhancedCriteria: UserCriteria | null }> {
   // Reset token tracker at the start of each run
   globalTokenTracker.reset();
 
@@ -149,8 +149,11 @@ async function runVideoRecommendationAgent(
     console.log(`Output characters: ${tokenUsage.outputTokens.toLocaleString()}`);
     console.log('');
 
-    // Return the final recommendations
-    return finalState.finalRecommendations;
+    // Return the final recommendations and enhanced criteria
+    return {
+      recommendations: finalState.finalRecommendations,
+      enhancedCriteria: finalState.enhancedUserCriteria,
+    };
   } catch (error) {
     // Clear timeout on error
     clearTimeout(timeoutHandle);
@@ -175,8 +178,11 @@ if (require.main === module) {
     "I'm a 49 years old guy that loves science fiction and hates cheesy stories. I would like to find movies to watch with my family.";
 
   runVideoRecommendationAgent(exampleUserInput)
-    .then(() => {
-      logger.info('🎯 Agent execution completed successfully - exiting process');
+    .then((result) => {
+      logger.info('🎯 Agent execution completed successfully - exiting process', {
+        recommendationsCount: result.recommendations.length,
+        enhancedCriteriaAvailable: !!result.enhancedCriteria,
+      });
       process.exit(0);
     })
     .catch((error) => {

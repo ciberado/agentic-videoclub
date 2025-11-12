@@ -146,6 +146,11 @@ export class WebSocketHandler {
       this.broadcast({ type: 'progress_update', payload: data });
     });
 
+    this.agentInvoker.on('enhancement_complete', (data) => {
+      console.log('🎯 AgentInvoker emitted enhancement_complete:', data);
+      this.broadcast({ type: 'enhancement_complete', payload: data });
+    });
+
     this.agentInvoker.on('workflow_complete', (data) => {
       this.broadcast({ type: 'workflow_complete', payload: data });
     });

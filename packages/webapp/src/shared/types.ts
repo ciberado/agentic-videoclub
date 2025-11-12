@@ -40,6 +40,17 @@ export interface LogEvent {
   details?: unknown;
 }
 
+export interface EnhancedUserCriteria {
+  originalInput: string;
+  enhancedGenres: string[];
+  excludeGenres: string[];
+  ageGroup: string;
+  familyFriendly: boolean;
+  preferredThemes: string[];
+  avoidThemes: string[];
+  searchTerms: string[];
+}
+
 // WebSocket message types
 export type ServerMessage =
   | { type: 'workflow_started'; payload: { workflowId: string } }
@@ -50,6 +61,7 @@ export type ServerMessage =
   | { type: 'movie_found'; payload: { movie: Movie } }
   | { type: 'progress_update'; payload: { nodeId: string; progress: number } }
   | { type: 'log_event'; payload: LogEvent }
+  | { type: 'enhancement_complete'; payload: { enhancement: EnhancedUserCriteria } }
   | { type: 'workflow_complete'; payload: { recommendations: Movie[] } }
   | { type: 'error'; payload: { message: string; details?: unknown } };
 

@@ -1,7 +1,14 @@
 import { notifications } from '@mantine/notifications';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-import { ClientMessage, ServerMessage, LogEvent, Movie, WorkflowStatus } from '../../shared/types';
+import {
+  ClientMessage,
+  ServerMessage,
+  LogEvent,
+  Movie,
+  WorkflowStatus,
+  EnhancedUserCriteria,
+} from '../../shared/types';
 
 interface WebSocketCallbacks {
   onWorkflowStarted?: (data: { workflowId: string }) => void;
@@ -12,6 +19,7 @@ interface WebSocketCallbacks {
   onMovieFound?: (data: { movie: Movie }) => void;
   onProgressUpdate?: (data: { nodeId: string; progress: number }) => void;
   onLogEvent?: (logEvent: LogEvent) => void;
+  onEnhancementComplete?: (data: { enhancement: EnhancedUserCriteria }) => void;
   onWorkflowComplete?: (data: { recommendations: Movie[] }) => void;
   onError?: (error: { message: string; details?: unknown }) => void;
 }
@@ -249,6 +257,13 @@ export const useWebSocket = (url: string, callbacks: WebSocketCallbacks): WebSoc
           'message' in serverMessage.payload
         ) {
           callbacks.onLogEvent?.(serverMessage.payload);
+        }
+        break;
+
+      case 'enhancement_complete':
+        console.log('[WS] Event: enhancement_complete', serverMessage.payload);
+        if (serverMessage.payload && 'enhancement' in serverMessage.payload) {
+          callbacks.onEnhancementComplete?.(serverMessage.payload);
         }
         break;
 

@@ -2,10 +2,25 @@ import { EventEmitter } from 'events';
 
 import { runVideoRecommendationAgent } from '@videoclub/agentic';
 
-import { UserRequirements, Movie, WorkflowStatus } from '../../shared/types';
+import { UserRequirements, Movie, WorkflowStatus, EnhancedUserCriteria } from '../../shared/types';
 
-// Import the agentic package - this will need to be adjusted based on the actual export
-// import { runWorkflow } from '@videoclub/agentic';
+// Type for the agentic package result
+interface AgenticResult {
+  recommendations: Array<{
+    movie: {
+      title: string;
+      year: number;
+      rating: number;
+      description: string;
+      genre: string[];
+      posterUrl?: string;
+      director: string;
+    };
+    matchReasoning: string;
+    confidenceScore: number;
+  }>;
+  enhancedCriteria: EnhancedUserCriteria | null;
+}
 
 export class AgentInvoker extends EventEmitter {
   private currentWorkflow: string | null = null;
@@ -100,11 +115,28 @@ export class AgentInvoker extends EventEmitter {
   }
 
   // Update progress based on log events
-  private updateProgress(logEvent: { nodeId?: string; message: string; level: string }): void {
+  private updateProgress(logEvent: {
+    nodeId?: string;
+    message: string;
+    level: string;
+    details?: unknown;
+  }): void {
     if (!this.workflowStatus) return;
 
-    const { message, nodeId } = logEvent;
+    const { message, nodeId, details } = logEvent;
     console.log('🔍 Processing log for progress:', { nodeId, message: message.substring(0, 100) });
+
+    // Check for special enhancement data message
+    if (
+      message.includes('🎯 ENHANCEMENT_DATA') &&
+      details &&
+      typeof details === 'object' &&
+      'enhancementData' in details
+    ) {
+      console.log('🎯 Found enhancement data in log:', details);
+      const enhancementData = details.enhancementData as EnhancedUserCriteria;
+      this.emit('enhancement_complete', { enhancement: enhancementData });
+    }
 
     // Direct node ID mapping from logs
     if (nodeId) {
@@ -269,14 +301,22 @@ export class AgentInvoker extends EventEmitter {
         progress,
       });
     }
-  } // Run the actual agentic workflow
+  }
+
+  // Run the actual agentic workflow
   private async runAgenticWorkflow(
     requirements: UserRequirements,
     logEmitter: EventEmitter,
   ): Promise<void> {
     try {
       // Run the agentic package workflow and get the real results
-      const movieEvaluations = await runVideoRecommendationAgent(requirements.prompt, logEmitter);
+      const result = (await runVideoRecommendationAgent(
+        requirements.prompt,
+        logEmitter,
+      )) as AgenticResult;
+
+      // Note: Enhancement results are now emitted during the prompt enhancement node execution
+      // via the special log message, so we don't emit them here anymore
 
       // Mark workflow as completed
       if (this.workflowStatus?.status === 'running') {
@@ -298,7 +338,7 @@ export class AgentInvoker extends EventEmitter {
         });
 
         // Convert MovieEvaluation[] to Movie[] for the webapp
-        const recommendations: Movie[] = movieEvaluations.map((evaluation, index) => ({
+        const recommendations: Movie[] = result.recommendations.map((evaluation, index) => ({
           id: (index + 1).toString(),
           title: evaluation.movie.title,
           year: evaluation.movie.year,
