@@ -1,8 +1,28 @@
+[](.coverbg)
+
 # Modelos, agentes, MCPs y Javascript ¿Qué puede salir mal?
+
+![El Alma del Ebro Sculpture in Zaragoza, Spain , by Pau Sabaté, https://www.pexels.com/photo/el-alma-del-ebro-sculpture-in-zaragoza-spain-13562058/](https://images.pexels.com/photos/13562058/pexels-photo-13562058.jpeg?cs=tinysrgb&w=1920&h=10800&dpr=1)
+
+[](.coverbg)
 
 ### Javi Moreno
 
+![](images/jeff-smiling.jpg)
+
+[](.coverbg)
+
+### NTT DATA
+
+[](.coverbg)
+
+### UPC School
+
+[](.coverbg)
+
 ### Dance course
+
+![People Holding Hands, by Rene Terp, https://www.pexels.com/photo/people-holding-hands-14300938/](https://images.pexels.com/photos/14300938/pexels-photo-14300938.jpeg)
 
 ### What an Agent is?
 
