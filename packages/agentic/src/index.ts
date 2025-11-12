@@ -40,8 +40,8 @@ async function runVideoRecommendationAgent(
   // Reset token tracker at the start of each run
   globalTokenTracker.reset();
 
-  // Set up global execution timeout (5 minutes)
-  const GLOBAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  // Set up global execution timeout (10 minutes)
+  const GLOBAL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
   const executionStartTime = Date.now();
 
   const timeoutHandle = setTimeout(() => {
@@ -49,7 +49,9 @@ async function runVideoRecommendationAgent(
       timeoutMs: GLOBAL_TIMEOUT_MS,
       executionTimeMs: Date.now() - executionStartTime,
     });
-    throw new Error('Global execution timeout reached after 5 minutes');
+    throw new Error(
+      `Global execution timeout reached after ${GLOBAL_TIMEOUT_MS / 1000 / 60} minutes`,
+    );
   }, GLOBAL_TIMEOUT_MS);
 
   // Create a logger wrapper that emits events for real-time streaming
