@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 
 import { runVideoRecommendationAgent } from '@videoclub/agentic';
 
+import { agentInvokerLogger } from '../../config/logger';
 import { UserRequirements, Movie, WorkflowStatus, EnhancedUserCriteria } from '../../shared/types';
 
 // Type for the agentic package result
@@ -20,6 +21,12 @@ interface AgenticResult {
     confidenceScore: number;
   }>;
   enhancedCriteria: EnhancedUserCriteria | null;
+}
+
+// Type for log event details that may contain enhancement data
+interface LogEventDetails {
+  enhancementData?: EnhancedUserCriteria;
+  [key: string]: unknown;
 }
 
 export class AgentInvoker extends EventEmitter {
@@ -80,10 +87,11 @@ export class AgentInvoker extends EventEmitter {
 
       // Forward log events from agentic package and track progress
       logEmitter.on('log_event', (logEvent) => {
-        console.log('🔍 AgentInvoker received log event:', {
+        agentInvokerLogger.debug('AgentInvoker received log event', {
           level: logEvent.level,
-          message: logEvent.message.substring(0, 100) + '...',
+          messagePreview: logEvent.message.substring(0, 100),
           nodeId: logEvent.nodeId,
+          hasFullMessage: logEvent.message.length > 100,
         });
         this.emit('log_event', logEvent);
         this.updateProgress(logEvent);
@@ -124,7 +132,11 @@ export class AgentInvoker extends EventEmitter {
     if (!this.workflowStatus) return;
 
     const { message, nodeId, details } = logEvent;
-    console.log('🔍 Processing log for progress:', { nodeId, message: message.substring(0, 100) });
+    agentInvokerLogger.debug('Processing log for progress tracking', {
+      nodeId,
+      messagePreview: message.substring(0, 100),
+      hasDetails: !!details,
+    });
 
     // Check for special enhancement data message
     if (
@@ -133,7 +145,10 @@ export class AgentInvoker extends EventEmitter {
       typeof details === 'object' &&
       'enhancementData' in details
     ) {
-      console.log('🎯 Found enhancement data in log:', details);
+      agentInvokerLogger.info('Found enhancement data in log event', {
+        nodeId,
+        enhancementDataKeys: Object.keys((details as LogEventDetails).enhancementData || {}),
+      });
       const enhancementData = details.enhancementData as EnhancedUserCriteria;
       this.emit('enhancement_complete', { enhancement: enhancementData });
     }
@@ -283,7 +298,12 @@ export class AgentInvoker extends EventEmitter {
         this.emit('node_error', { nodeId, error: 'Node execution failed' });
       }
 
-      console.log(`🔄 Node ${nodeId} status changed from ${previousStatus} to ${status}`);
+      agentInvokerLogger.info('Node status changed', {
+        nodeId,
+        nodeName: node.name,
+        previousStatus,
+        newStatus: status,
+      });
     }
   }
 
@@ -292,7 +312,11 @@ export class AgentInvoker extends EventEmitter {
     if (!this.workflowStatus) return;
 
     if (progress > this.workflowStatus.progress) {
-      console.log(`📈 Updating progress from ${this.workflowStatus.progress}% to ${progress}%`);
+      agentInvokerLogger.info('Progress updated', {
+        previousProgress: this.workflowStatus.progress,
+        newProgress: progress,
+        progressIncrease: progress - this.workflowStatus.progress,
+      });
       this.workflowStatus.progress = progress;
       // Find the current active node
       const activeNode = this.workflowStatus.nodes.find((n) => n.status === 'active');
@@ -338,17 +362,27 @@ export class AgentInvoker extends EventEmitter {
         });
 
         // Convert MovieEvaluation[] to Movie[] for the webapp
-        const recommendations: Movie[] = result.recommendations.map((evaluation, index) => ({
-          id: (index + 1).toString(),
-          title: evaluation.movie.title,
-          year: evaluation.movie.year,
-          rating: evaluation.movie.rating,
-          overview: evaluation.movie.description || 'No description available',
-          genre: evaluation.movie.genre || [],
-          posterUrl: evaluation.movie.posterUrl,
-          reasoning: evaluation.matchReasoning,
-          confidenceScore: evaluation.confidenceScore,
-        }));
+        const recommendations: Movie[] = result.recommendations.map((evaluation, index) => {
+          // Debug log to check poster URLs
+          agentInvokerLogger.debug('Processing movie recommendation', {
+            movieTitle: evaluation.movie.title,
+            hasPosterUrl: !!evaluation.movie.posterUrl,
+            posterUrl: evaluation.movie.posterUrl || 'missing',
+            movieKeys: Object.keys(evaluation.movie),
+          });
+
+          return {
+            id: (index + 1).toString(),
+            title: evaluation.movie.title,
+            year: evaluation.movie.year,
+            rating: evaluation.movie.rating,
+            overview: evaluation.movie.description || 'No description available',
+            genre: evaluation.movie.genre || [],
+            posterUrl: evaluation.movie.posterUrl,
+            reasoning: evaluation.matchReasoning,
+            confidenceScore: evaluation.confidenceScore,
+          };
+        });
 
         this.workflowStatus.results = recommendations;
         this.emit('workflow_complete', { recommendations });

@@ -1,5 +1,8 @@
-import { WebSocket } from 'ws';
+// eslint-disable-next-line import/no-named-as-default-member
+// eslint-disable-next-line import/no-named-as-default
+import WebSocket from 'ws';
 
+import { webSocketLogger } from '../../config/logger';
 import { ClientMessage, ServerMessage, UserRequirements } from '../../shared/types';
 import { AgentInvoker } from '../services/agentInvoker';
 
@@ -15,7 +18,10 @@ export class WebSocketHandler {
   }
 
   handleConnection(ws: WebSocket): void {
-    console.log('🔗 New WebSocket connection established. Total clients:', this.clients.size + 1);
+    webSocketLogger.info('New WebSocket connection established', {
+      totalClients: this.clients.size + 1,
+      connectionId: ws.url || 'unknown',
+    });
     this.clients.add(ws);
 
     // Send current workflow status if any
@@ -49,7 +55,9 @@ export class WebSocketHandler {
 
   handleDisconnection(ws: WebSocket): void {
     this.clients.delete(ws);
-    console.log('🔗 WebSocket connection closed. Total clients:', this.clients.size);
+    webSocketLogger.info('WebSocket connection closed', {
+      totalClients: this.clients.size,
+    });
   }
 
   private async handleClientMessage(ws: WebSocket, message: ClientMessage): Promise<void> {
@@ -121,7 +129,9 @@ export class WebSocketHandler {
 
   private setupAgentListeners(): void {
     this.agentInvoker.on('workflow_started', (data) => {
-      console.log('🔔 AgentInvoker emitted workflow_started:', data);
+      webSocketLogger.info('Workflow started event received', {
+        userId: data.userInput?.substring(0, 50) || 'unknown',
+      });
       this.broadcast({ type: 'workflow_started', payload: data });
     });
 
@@ -142,12 +152,17 @@ export class WebSocketHandler {
     });
 
     this.agentInvoker.on('progress_update', (data) => {
-      console.log('📊 AgentInvoker emitted progress_update:', data);
+      webSocketLogger.debug('Progress update event received', {
+        progress: data.progress,
+        nodeId: data.nodeId,
+      });
       this.broadcast({ type: 'progress_update', payload: data });
     });
 
     this.agentInvoker.on('enhancement_complete', (data) => {
-      console.log('🎯 AgentInvoker emitted enhancement_complete:', data);
+      webSocketLogger.info('Enhancement complete event received', {
+        hasEnhancement: !!data.enhancement,
+      });
       this.broadcast({ type: 'enhancement_complete', payload: data });
     });
 

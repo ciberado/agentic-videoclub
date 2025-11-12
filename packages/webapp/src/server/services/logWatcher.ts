@@ -2,12 +2,13 @@ import { EventEmitter } from 'events';
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import path from 'path';
 
-import { watch } from 'chokidar';
+import { watch, FSWatcher } from 'chokidar';
 
+import { logWatcherLogger } from '../../config/logger';
 import { LogEvent } from '../../shared/types';
 
 export class LogWatcher extends EventEmitter {
-  private watcher: any = null;
+  private watcher: FSWatcher | null = null;
   private logFilePath: string;
   private lastPosition: number = 0;
 
@@ -33,11 +34,16 @@ export class LogWatcher extends EventEmitter {
       .on('add', (filePath: string) => this.handleLogFile(filePath))
       .on('change', (filePath: string) => this.handleLogFile(filePath))
       .on('error', (error: Error) => {
-        console.error('Log watcher error:', error);
+        logWatcherLogger.error('Log watcher error', {
+          error: error.message,
+          stack: error.stack,
+        });
         this.emit('error', error);
       });
 
-    console.log(`Started watching logs at: ${this.logFilePath}`);
+    logWatcherLogger.info('Started watching logs', {
+      logDirectory: this.logFilePath,
+    });
   }
 
   stopWatching(): void {
