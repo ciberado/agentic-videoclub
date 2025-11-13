@@ -540,4 +540,137 @@ The Model Context Protocol (MCP) is a standardized way for AI models to interact
 
 :::
 
-## evaluateMoviesAgent
+[](#shouldIContinueNode,.no-header.highlight-snippets)
+
+### shouldIContinueNode
+
+```javascript
+// Workflow for movie recommendation
+async function movieWorkflow() {
+    const userPreferences = await askUserWhatToWatch();
+    const refinedCriteria = await refineCriteriaNode(userPreferences);
+    const movies = await movieDiscoveryNode();
+    let candidates = [];
+    let currentBatch = 0;
+
+    do {
+        const evaluated =
+            await evaluateMoviesNode(movies, currentBatch, refinedCriteria);
+        candidates.push(...evaluated);
+        currentBatch++;
+    } while («shouldIContinueNode(candidates)»);
+
+    return await presentRecommendations(candidates);
+}
+```
+
+[](.coverbg)
+
+![Crazy dancing](images/dance-3.jpg)
+
+[](.illustration.contain.header-right)
+
+### Graphlang
+
+![](https://kroki.io/mermaid/svg/eNqFkk9v4jAQxe_9FCNVvUGXwrJl0aoSJIEiLQgVyh4iDsaeEKvGRrbDH5X97usY6gbtobnZmfeb92a81mSbwzy-Aff10leDGkZyW9gl1OtP0E-nWm22FhKZE0lxg9LCRDFcekHfF0XpWO04QswNVTvURyCSQUwsgQFamnO5PmvAiyIvitORtCgEX5fIZEdEQSxXskKPfWHyPhBqD5GSVivxa6W_PZlcFYKVN1wWOEOifZO_N152dwdVBcRIuSnJv9WaU1-SlOTTgEsi4AWp2rhczLc37kzY8QTPaTKJl5XqRKpinUPksnFXiwYGqpDsBMO0T1zK0K8M_6IKG2JXIBNEBmOlEfzIzAmiyt8xOUDPWnQD9z5ojiU_xLruo10P52JF6BtYdZXZC4bn8QW1X8hMFZqi-VjEvev6B1cwo-4dOMMnmC7cyvkGYcEZqrCIez8BzWnun8A-RwnShSkNztP5OO5DbzpahmYzexSO549UEGNizEC6aUDGhejeYitrZqxmnNs37N4-_Hz8wZqXY33Pmc27ze3hWs4-FnlGZBS_Iw0I2nzotFdfINyat4q7ABcXnayNnYBodTrYol8hDhZ1-XAuLrKshY2AyNqPtNH4H_HJgH4tqsW1oZ9G5ToJ-SqXz8Fx5XK6qM2DjX8iVC7t)
+
+It provides **composable** workflow definition that makes complex AI pipelines maintainable. Also, it gives you built-in **state persistence**, automatic **retry** mechanisms, **visual representation**, error handling, and the ability to pause/resume long-running processes.
+
+::: Notes
+
+- For this project, it is overkill.
+
+:::
+
+[](#the-workflow)
+
+### The workflow
+
+```javascript
+// Workflow for movie recommendation
+async function movieWorkflow() {
+    const «userPreferences» = await askUserWhatToWatch();
+    const «refinedCriteria» = await refineCriteriaNode(userPreferences);
+
+    const «movies» = await movieDiscoveryNode();
+    let «candidates» = [];
+    let «currentBatch» = 0;
+
+    do {
+        const evaluated =
+            await evaluateMoviesNode(movies, currentBatch, refinedCriteria);
+        candidates.push(...evaluated);
+        currentBatch++;
+    } while (shouldIContinueNode(candidates));
+
+    return await presentRecommendations(candidates);
+}
+```
+
+### The Real Workflow
+
+```javascript
+const videoRecommendationWorkflow = new StateGraph(VideoRecommendationAgentState)
+  .addNode('prompt_enhancement_node', promptEnhancementNode)
+  .addNode('movie_discovery_node', movieDiscoveryNode)
+  .addNode('intelligent_evaluation_node', intelligentEvaluationNode)
+  .addNode('batch_control_and_routing_node', batchRoutingNode)
+
+  .addEdge(START, 'prompt_enhancement_node')
+  .addEdge('prompt_enhancement_node', 'movie_discovery_node')
+  .addEdge('movie_discovery_node', 'intelligent_evaluation_node')
+
+  .addConditionalEdges('intelligent_evaluation_node', shouldContinueSearching)
+  .addConditionalEdges('batch_control_and_routing_node', shouldContinueSearching);
+```
+
+[](.coverbg)
+
+### Demo?
+
+![A car through a firewall](images/car-explosion.jpg)
+
+::: Notes
+
+- Transparency (source code)
+- Human Oversight (Fine UX review option)
+
+:::
+
+[](#emule,.no-header)
+
+### Any additional feature?
+
+![Emule logo](images/emule.jpg)
+
+[](#sad-jeff,.no-header.coverbg)
+
+### Sad Jeff
+
+![](images/jeff-sad.jpg)
+
+::: Notes
+
+- Jeff, it was you who started to add commerciales to the movies
+- The basics are simple
+- You need
+
+:::
+
+[](.coverbg.header-left)
+
+### The Future
+
+![Silhouette of Mountain Under Starry Night, by Orientation, https://www.pexels.com/photo/silhouette-of-mountain-under-starry-night-11071293/](https://images.pexels.com/photos/11071293/pexels-photo-11071293.jpeg)
+
+To explore strange new worlds, to seek out new life and new civilizations, to boldly go where no one has gone before
+
+[tinyurl.com/ghavid](https://tinyurl.com/ghavid)
+
+::: Notes
+
+- Tenemos herramientas poderosas
+- No dejemos que nos las quiten
+- Sed responsables usándolas
+
+:::
