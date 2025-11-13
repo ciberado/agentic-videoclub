@@ -30,34 +30,33 @@ Each node represents a specialized processing stage with specific responsibiliti
 ```mermaid
 graph TD
     A[User Input] --> B[Prompt Enhancement Node]
-    B --> C[Movie Discovery Node]
-    C --> D[Evaluation Node]
-    D --> E[Flow Control]
+    B --> C[Movie Discovery and Data Fetching Node]
+    C --> D[Intelligent Evaluation Node]
+    D --> E{Flow Control<br/>shouldContinueSearching}
 
-    %% Single React Agent handles both enrichment and evaluation
-    D --> RA[Single React Agent<br/>Enrichment + Evaluation]
-    RA <--> T[TMDB Tool]
-    T -.->|Auto-Enrichment| RA
-    RA -.->|Complete Analysis| D
+    %% Flow Control Decision Logic
+    E -->|Final Recommendations Ready| H[END]
+    E -->|Enough Candidates Found| G[Batch Control and Routing Node]
+    E -->|Need More Movies| C
+    E -->|Max Attempts Reached| G
 
-    %% Flow Control Logic
-    E --> F{Continue Search?}
-    F -->|Need More| C
-    F -->|Quality Gate Met| G[Batch Control]
-    F -->|Max Attempts| G
+    %% Batch Control routes back to Flow Control
+    G --> E
 
-    G --> H[Final Recommendations]
+    %% Data Sources
+    C -.->|Web Scraping| PV[Prime Video]
+    D -.->|Enrichment when needed| T[TMDB API]
 
     %% Styling
     classDef node fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef unified fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-    classDef tool fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
     classDef decision fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef endpoint fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#f57c00,stroke-width:2px
 
     class B,C,D,G node
-    class RA unified
-    class T tool
-    class F decision
+    class E decision
+    class H endpoint
+    class PV,T external
 ```
 
 ## Component Details
