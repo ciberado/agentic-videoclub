@@ -1,3 +1,17 @@
+.slidedeck {
+    font-size: 34pt;
+
+    section {
+        >p {
+            margin: 3em 1.5em 0 50%;
+        }
+
+        code {
+            font-size: 24pt
+        }
+    }
+}
+
 .slidedeck.speaker section.active div.slide-notes {
     font-size: 80pt;
 
@@ -19,6 +33,14 @@
         h2,
         h3 {
             display: none;
+        }
+
+        &:has(> pre >code) {
+            pre {
+                position: relative;
+                top: 50%;
+                transform: translateY(-50%);
+            }
         }
     }
 
@@ -53,7 +75,39 @@
         }
     }
 
+    &.header-left.header-down {
+
+        h1,
+        h2,
+        h3 {
+            top: 60%;
+        }
+    }
+
+    &.header-right.header-down {
+
+        h1,
+        h2,
+        h3 {
+            top: 60%;
+        }
+    }
+
+
+    &.highlight-snippets {
+        .snippet {
+            background-color: #ffeb3b;
+        }
+    }
+
+    :not(pre)>code[class*="language-"],
+    pre[class*="language-"] {
+        background-color: unset;
+    }
+
+
 }
+
 
 #javi {
     h3 {
@@ -129,13 +183,6 @@
     }
 }
 
-#bedrock {
-    p {
-        margin: 3em 1.5em 0 50%;
-        font-size: 28pt;
-    }
-}
-
 #the-workflow {
     .snippet {
         transition: background-color 0.3s ease-in-out;
@@ -155,5 +202,34 @@
 
     to {
         background-color: #ffeb3b;
+    }
+}
+
+#wish {
+    >blockquote {
+        color: #eee;
+        text-shadow: 0 4px 4px #000000ff, 0 2px 6px #00000080;
+        font-weight: bold;
+        margin-left: 960px;
+        margin-top: 550px;
+        width: 50%;
+        font-style: italic;
+        font-size: 70pt;
+    }
+}
+
+#llm-fierce {
+    h3 {
+        margin-top: 200px;
+        width: 40%;
+    }
+}
+
+#llm-sad {
+    h3 {
+        margin-top: 200px;
+        width: 40%;
+        font-size: 120pt;
+        text-align: center;
     }
 }

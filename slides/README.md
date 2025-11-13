@@ -30,21 +30,6 @@ Comenta que también somos sponsors y que es súper bien.
 Que miren la bolsa y los cursos.  
 Y que no sé a quién voy a pasar los tickets de gastos.
 
-[](#title,.coverbg)
-
-# Modelos, agentes, MCPs y Javascript ¿Qué puede salir mal?
-
-![El Alma del Ebro Sculpture in Zaragoza, Spain , by Pau Sabaté, https://www.pexels.com/photo/el-alma-del-ebro-sculpture-in-zaragoza-spain-13562058/](https://images.pexels.com/photos/13562058/pexels-photo-13562058.jpeg?cs=tinysrgb&w=1920&h=10800&dpr=1)
-
-::: Notes
-
-Cuenta cómo dijiste "con lo bien que te lo pasaste el año pasado, qué tontería podrías presentar este?"  
-Llevas trabajando meses creando agentes en el trabajo.
-Ya sería hora de hacer algo útil con lo que has aprendido.  
-Y quizá de ahorrar algún momento de confusión.
-
-:::
-
 [](#free-time,.coverbg)
 
 ### Free time!
@@ -68,6 +53,27 @@ Una hora después sigo en el scrolling infernal sin solución de continuidad.
 Enfadado y con sueño. A dormir.
 
 :::
+
+[](#title,.coverbg)
+
+# Modelos, agentes, MCPs y Javascript ¿Qué puede salir mal?
+
+![El Alma del Ebro Sculpture in Zaragoza, Spain , by Pau Sabaté, https://www.pexels.com/photo/el-alma-del-ebro-sculpture-in-zaragoza-spain-13562058/](https://images.pexels.com/photos/13562058/pexels-photo-13562058.jpeg?cs=tinysrgb&w=1920&h=10800&dpr=1)
+
+::: Notes
+
+Cuenta cómo dijiste "con lo bien que te lo pasaste el año pasado, qué tontería podrías presentar este?"  
+Llevas trabajando meses creando agentes en el trabajo.
+Ya sería hora de hacer algo útil con lo que has aprendido.  
+Y quizá de ahorrar algún momento de confusión.
+
+:::
+
+[](.coverbg)
+
+### Demo!
+
+![A car through a firewall](images/car-explosion.jpg)
 
 [](#dance-intro,.coverbg.header-left)
 
@@ -103,7 +109,13 @@ Jim Smith, Marketing director
 - **Has goals** - works toward objectives with minimal human supervision
 - **Uses reasoning** - breaks down complex tasks into steps and adapts based on results
 
-[](#bedrock,.illustration.header-right)
+::: Notes
+
+El punto importante es el primero: una aplicación que usa LLMs, no un LLM.
+
+:::
+
+[](#bedrock,.illustration.contain.header-right)
 
 ### Amazon Bedrock
 
@@ -126,6 +138,25 @@ Precios Haiku: $1 por millon input,$5 por millón output
 
 ![Linus Torvalds](images/linus.png)
 
+[](.illustration.header-right)
+
+### LangChain
+
+![](images/langgraph.png)
+
+A toolkit that helps you build apps with LLMs without losing your sanity. It handles the boring stuff like connecting to different AI models, managing conversation memory, and hooking up external tools.
+
+::: Notes
+
+Justifica como a medio plazo los LLMs pueden ser una commodity, pero las forma de
+integrarnos con ellos se pueden convertir en un vendor-lock.
+
+Comenta que Langchain tiene una comunidad importante, una documentación lamentable y
+montañas de dinero en VC. El futuro no es alagüeño, pero podría ser peor: podríamos
+utilizar directamente el API de Bedrock.
+
+:::
+
 [](#the-workflow,.partial)
 
 ### The workflow
@@ -134,18 +165,18 @@ Precios Haiku: $1 por millon input,$5 por millón output
 // Workflow for movie recommendation
 async function movieWorkflow() {
     const «userPreferences» = await askUserWhatToWatch();
-    const «refinedCriteria» = await refineCriteriaAgent(userPreferences);
+    const «refinedCriteria» = await refineCriteriaNode(userPreferences);
 
-    const «movies» = await movieDiscoveryAgent();
+    const «movies» = await movieDiscoveryNode();
     let «candidates» = [];
     let «currentBatch» = 0;
 
     do {
-        const selectedBatch = await selectNextMovieBatch(movies, currentBatch);
-        const evaluated = await evaluateMoviesAgent(selectedBatch, refinedCriteria);
+        const evaluated =
+            await evaluateMoviesNode(movies, currentBatch, refinedCriteria);
         candidates.push(...evaluated);
         currentBatch++;
-    } while (candidates.length < MINIMUM_CANDIDATES);
+    } while (shouldIContinueNode(candidates));
 
     return await presentRecommendations(candidates);
 }
@@ -153,12 +184,64 @@ async function movieWorkflow() {
 
 -
 
+[](#the-state,.illustration.header-right)
+
 ### The State
 
-> The State is the memory that will carry on all the data during the workflow
-> execution.
+![Person Writing on Pink Sticky Notes, by Orientation, https://www.pexels.com/photo/person-writing-on-pink-sticky-notes-3854816/](https://images.pexels.com/photos/3854816/pexels-photo-3854816.jpeg)
 
-## refineCriteriaNode
+It is the **shared memory** or data structure that persists throughout a workflow execution, containing all the information that agents need to access, modify, and pass between each other.
+
+::: Notes
+
+The State is the memory that will carry on all the data during the workflow execution.
+
+:::
+
+[](#refinecriterianode,.no-header.highlight-snippets)
+
+### refineCriteriaNode
+
+```javascript
+// Workflow for movie recommendation
+async function movieWorkflow() {
+    const userPreferences = await askUserWhatToWatch();
+    «const refinedCriteria = await refineCriteriaNode(userPreferences);»
+    const movies = await movieDiscoveryNode();
+    let candidates = [];
+    let currentBatch = 0;
+
+    do {
+        const evaluated =
+            await evaluateMoviesNode(movies, currentBatch, refinedCriteria);
+        candidates.push(...evaluated);
+        currentBatch++;
+    } while (shouldIContinueNode(candidates));
+
+    return await presentRecommendations(candidates);
+}
+```
+
+[](.highlight-snippets)
+
+### Talking to Bedrock
+
+```javascript
+const llm = new ChatBedrockConverse({
+    model: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+    region: region,
+    temperature: 0.1, // Low temperature for consistent, structured outputs
+});
+
+const «prompt» = ...
+const response = await client.invoke(
+    [
+        { role: 'user', content: «prompt» }
+    ]
+);
+
+return response;
+```
 
 ### The Prompt
 
@@ -211,34 +294,79 @@ RESPOND ONLY WITH VALID JSON - NO OTHER TEXT OR EXPLANATIONS.
 
 :::
 
-### Talking to Bedrock
+[](#moviediscoverynode,.no-header.highlight-snippets)
+
+### movieDiscoveryNode
 
 ```javascript
-const llm = new ChatBedrockConverse({
-    model: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
-    region: region,
-    temperature: 0.1, // Low temperature for consistent, structured outputs
-});
+// Workflow for movie recommendation
+async function movieWorkflow() {
+    const userPreferences = await askUserWhatToWatch();
+    const refinedCriteria = await refineCriteriaNode(userPreferences);
+    «const movies = await movieDiscoveryNode();»
+    let candidates = [];
+    let currentBatch = 0;
 
-const prompt = ...
-const response = await client.invoke(
-    [
-        { role: 'user', content: prompt }
-    ]
-);
+    do {
+        const evaluated =
+            await evaluateMoviesNode(movies, currentBatch, refinedCriteria);
+        candidates.push(...evaluated);
+        currentBatch++;
+    } while (shouldIContinueNode(candidates));
 
-return response;
+    return await presentRecommendations(candidates);
+}
 ```
 
-## movieDiscoveryAgent
+[](#wish,.coverbg.no-header)
 
-### First approach: Ask the LLM to do the hard job
+### First approach
+
+![White Dandelion Flower Shallow Focus Photography, by Orientation, https://www.pexels.com/photo/white-dandelion-flower-shallow-focus-photography-54300/](https://images.pexels.com/photos/54300/pexels-photo-54300.jpeg)
+
+> "This is a Prime Video page, extract the movie data."
 
 ::: Notes
 
-750.000 characters per pure html page
+Descargaba el html y se lo mandaba al Claude en el prompt.
+El caso es que no funcionaba muy bien.
 
 :::
+
+[](.coverbg.header-left)
+
+### 750KB of HTML
+
+![Animal On Green Grass Field, by Filip Olsok, https://www.pexels.com/photo/animal-on-green-grass-field-4003495/](https://images.pexels.com/photos/4003495/pexels-photo-4003495.jpeg)
+
+::: Notes
+
+- 750.000 characters per pure html page.
+- Con assets se va a 18MB.
+- Para esto se utiliza Retrieval Augmented Generation (RAG)
+
+:::
+
+[](.coverbg.header-right.header-down)
+
+### Retrieval Augmented Generation
+
+![White Papers, by Amanda George, https://www.pexels.com/photo/white-papers-2978800/](https://images.pexels.com/photos/2978800/pexels-photo-2978800.jpeg)
+
+::: Notes
+
+- Consultas una base de datos, extraes chunks relevantes, los insertas en el prompt.
+- Pides al LLM que cuando utilice un chunk lo marque como una citación.
+- Langchain lo soporta nativamente.
+
+- AWS soporta **Knowledge Bases** como servicio de integración y storage basado en vectores.
+- También puede implementarse con otras bases de datos.
+
+- Pero yo ya tengo un trabajo, esto es por las risas.
+
+:::
+
+[](.no-header.highlight-snippets)
 
 ### Second attempt: Extract the useful information
 
@@ -246,7 +374,7 @@ return response;
 import { convert } from 'html-to-text';
 
 function extractRelevantMovieContent(html: string): string {
-  const cleanedText = convert(html, {
+  const cleanedText = «convert»(html, {
     selectors: [
       { selector: 'script', format: 'skip' },
       { selector: 'style', format: 'skip' },
@@ -258,27 +386,86 @@ function extractRelevantMovieContent(html: string): string {
 }
 ```
 
-## evaluateMoviesAgent
+::: Notes
+
+Maximize the amount of useful information in the prompt.
+
+:::
+
+[](.covervg)
+
+![A couple dancing](images/dance-2.jpg)
+
+[](#moviediscoverynode,.no-header.highlight-snippets)
+
+### evaluateMoviesNode
+
+```javascript
+// Workflow for movie recommendation
+async function movieWorkflow() {
+    const userPreferences = await askUserWhatToWatch();
+    const refinedCriteria = await refineCriteriaNode(userPreferences);
+    const movies = await movieDiscoveryNode();
+    let candidates = [];
+    let currentBatch = 0;
+
+    do {
+        «const evaluated =
+            await evaluateMoviesNode(movies, currentBatch, refinedCriteria);»
+        candidates.push(...evaluated);
+        currentBatch++;
+    } while (shouldIContinueNode(candidates));
+
+    return await presentRecommendations(candidates);
+}
+```
+
+::: Notes
+
+- Nuestro objetivo es conseguir un score para cada película.
+- Tenemos información básica sobre la misma, con un poco de suerte.
+- Pero seguramente algunas películas carecerán de datos suficientes.
+- Y Prime Video no ofrece reviews de clientes.
+
+:::
+
+[](.coverbg.no-header)
 
 ### We may need additional data
 
-### Providing hands to our agent
+![](images/tmdb.png)
 
-### LLM can invoke functions, isn't it?
+::: Notes
+
+- More than 1M movie references
+
+:::
+
+[](#llm-fierce,.coverbg)
+
+### LLM can invoke tools, isn't it?
+
+![Fierce robot](images/robot-fierce.png)
+
+[](#llm-sad,.coverbg)
 
 ### NO
 
-### How a tool works
+![Sad robot](images/robot-sad.png)
+
+[](#robot-tool,.coverbg.header-down.header-right)
+
+### It's not the spoon that bends, it is only your agent
+
+![A White Robot with Foot Above a Small Robot, by Orientation, https://www.pexels.com/photo/a-white-robot-with-foot-above-a-small-robot-8294618/](https://images.pexels.com/photos/8294618/pexels-photo-8294618.jpeg)
+
+::: Notes
 
 - Your Model is trained to understand when it needs external help
 - You provide in the prompt instructions with the available functions
 - If it happens, it returns structured data with the invocation syntax
 - Your agent application does the actual invocation
 - And then it calls again the LLM adding the results to the conversation
-
-::: Notes
-
-All SDK provide support for this pattern.
 
 :::
 
@@ -312,13 +499,13 @@ const tmdbEnrichmentToolOptions = {
 };
 ```
 
-###
+[](.highlight-snippets)
 
 ### Attaching the hands to the agent
 
 ```js
 const tmdbEnrichmentTool = tool(tmdbEnrichmentToolFn, tmdbEnrichmentToolOptions);
-const agents = createAgent({
+const agent = «createAgent»({
   model: new ChatBedrockConverse({
     model: modelId,
     region: process.env.AWS_REGION || 'us-east-1',
@@ -326,20 +513,30 @@ const agents = createAgent({
   }),
   tools: [tmdbEnrichmentTool],
 });
-const input = `... ... 
-    Use the TMDB enrichment tool if you need additional information, 
-    then provide your evaluation as JSON. ... ... 
+const input = `... ...
+    Use the TMDB enrichment tool if you need additional information,
+    then «provide your score evaluation» as JSON. ... ...
 `;
 const response = await agent.invoke({
   messages: [{ role: 'user', content: input }],
 });
 ```
 
-### MCPs
+::: Notes
+
+- The prompt is, of course, much more complicated.
+
+:::
+
+[](.coverbg.header-down)
+
+### Model context protocol
+
+![](images/bubble-2.png)
 
 ::: Notes
 
-It is just a protocol for side-running the tools in another process.
+The Model Context Protocol (MCP) is a standardized way for AI models to interact with external tools and data sources through a separate process or service. Instead of having tools directly embedded within your agent application, MCP allows you to run tools as independent services that communicate with your AI model through a well-defined protocol.
 
 :::
 
