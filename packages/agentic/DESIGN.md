@@ -1,461 +1,345 @@
-# Video Recommendation Multi-Agent System - Design Document (Current Implementation)
+# Movie Recommendation Agent - Architecture & Design
 
 ## Overview
 
-This document outlines the architectural decisions for building a production-ready video recommendation **Multi-Agent System (MAS)** using modern LangGraph.js v1 and TypeScript. The system implements a sophisticated multi-agent architecture with specialized agents orchestrated through a 4-node workflow, featuring autonomous React Agent patterns, intelligent tool usage, and collaborative agent coordination for complex movie recommendation tasks.
+The Movie Recommendation Agent is a sophisticated TypeScript application built with **LangGraph.js v1** that helps users discover movies based on their preferences. The system combines AI-powered natural language processing, real-time web scraping, and intelligent evaluation to provide personalized movie recommendations.
 
-**Multi-Agent Architecture**: The system demonstrates a sophisticated **composite multi-agent architecture** where specialized agents collaborate under LangGraph orchestration. Each agent has distinct capabilities: prompt enhancement, movie discovery, autonomous evaluation with tool usage, and flow control coordination.
+**Core Features:**
 
-**React Agent Integration**: Features a production-validated React Agent subagent that autonomously manages TMDB movie enrichment, showcasing intelligent tool selection and seamless data integration within the larger multi-agent workflow.
+- 🧠 **AI-Powered**: Uses AWS Bedrock (Claude models) for intelligent analysis
+- 🎬 **Live Data**: Scrapes Prime Video in real-time for current availability
+- 🤖 **React Agents**: Autonomous tool-using agents for movie enrichment
+- 📊 **Smart Caching**: SQLite database for optimized performance
+- 🔍 **Batch Processing**: Handles large movie catalogs efficiently
+- 📈 **Resource Tracking**: Comprehensive token usage monitoring
 
-**Production Focus**: This implementation features real AWS Bedrock integration, live web scraping of Prime Video, SQLite database caching, comprehensive token consumption tracking, and enterprise-grade logging to demonstrate production-ready multi-agent system patterns with actual external service integrations.
+## System Architecture
 
-**Token Monitoring**: The system includes comprehensive token consumption tracking across all agent operations, providing visibility into resource usage with detailed breakdowns of input/output tokens, operation counts, and cost analysis for production optimization.
+### High-Level Workflow
 
-## Multi-Agent System Architecture
+The system processes user requests through a 4-node pipeline orchestrated by LangGraph:
 
-### High-Level Multi-Agent Flow
+```
+User Input → Prompt Enhancement → Movie Discovery → Evaluation → Final Recommendations
+```
 
-The **Multi-Agent System (MAS)** features specialized agents orchestrated through a 4-node LangGraph workflow with intelligent agent coordination:
+Each node represents a specialized processing stage with specific responsibilities and AI models optimized for that task.
 
-1. **Prompt Enhancement Agent** → 2. **Movie Discovery Pipeline** → 3. **React Agent Evaluation** → 4. **Flow Control & Orchestration**
-
-The system demonstrates **emergent intelligence** through agent collaboration, with each specialized agent contributing unique capabilities while the React Agent subagent autonomously manages tool usage for optimal evaluation quality.
-
-### Multi-Agent Architecture Diagram
+### Architecture Diagram
 
 ```mermaid
 graph TD
     A[User Input] --> B[Prompt Enhancement Node]
     B --> C[Movie Discovery Node]
     C --> D[Evaluation Node]
-    D --> E[Flow Control Node]
+    D --> E[Flow Control]
 
-    %% React Agent Subagent within Evaluation Node
-    D --> RA[React Agent Subagent]
-    RA --> T[TMDB Tool]
-    T -.->|Enriched Data| RA
-    RA -.->|Enhanced Analysis| D
+    %% Single React Agent handles both enrichment and evaluation
+    D --> RA[Single React Agent<br/>Enrichment + Evaluation]
+    RA <--> T[TMDB Tool]
+    T -.->|Auto-Enrichment| RA
+    RA -.->|Complete Analysis| D
 
-    %% Routing Logic
-    E --> F{Quality Gate?}
-    F -->|✓ Sufficient Candidates| G[Batch Control Node]
-    F -->|✗ Need More Movies| C
-    F -->|✗ No More Movies| G
+    %% Flow Control Logic
+    E --> F{Continue Search?}
+    F -->|Need More| C
+    F -->|Quality Gate Met| G[Batch Control]
+    F -->|Max Attempts| G
 
-    G --> H[Final Output]
+    G --> H[Final Recommendations]
 
     %% Styling
-    classDef Agent fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
+    classDef node fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef unified fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    classDef tool fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef decision fill:#fce4ec,stroke:#c2185b,stroke-width:2px
 
-    style A fill:#f9f9f9,stroke:#333,stroke-width:2px
-    style T fill:#fff8e1,stroke:#ff6f00,stroke-width:2px
-    style F fill:#ffecb3,stroke:#f57f17,stroke-width:2px
-    style G fill:#fce4ec,stroke:#ad1457,stroke-width:3px
-    style H fill:#f1f8e9,stroke:#689f38,stroke-width:3px
-
-    %% Apply Agent class to actual agent nodes only
-    class B,C,D,E,RA Agent
+    class B,C,D,G node
+    class RA unified
+    class T tool
+    class F decision
 ```
 
-### Multi-Agent Component Design
+## Component Details
 
-#### 1. Prompt Enhancement Agent (`prompt_enhancement_node`)
+### 1. Prompt Enhancement Node 🎯
 
-**Agent Type**: **Specialized LLM Agent** - Claude 3 Haiku-powered natural language interpreter
+**Purpose**: Transforms natural language user input into structured, actionable search criteria.
 
-**Responsibility**: Natural language processing and context enrichment with token tracking
+**Technology**: AWS Bedrock Claude 3 Haiku (fast & cost-effective)
 
-- **LLM Analysis**: Interprets user's natural language description using Claude 3 Haiku for fast, cost-effective analysis
-- **Context Expansion**: Adds demographic insights, genre mappings, and comprehensive preference clarifications
-- **Search Strategy**: Generates specific search terms, filters, and quality criteria optimized for Prime Video discovery
-- **Family Context**: Identifies family-appropriate content requirements and content rating preferences
-- **Token Monitoring**: Tracks input/output tokens for cost analysis (~500-800 tokens per operation)
-- **Agent Design Choice**: Specialized agent front-loads intelligence to improve downstream search accuracy while monitoring resource consumption
+**Key Features**:
 
-**Example Enhancement**:
+- Demographic inference (age, family context)
+- Genre mapping and expansion
+- Theme preference extraction
+- Content appropriateness detection
+- Search term optimization
+
+**Example Transformation**:
 
 ```
-Input: "I'm a 49 years old guy that loves science fiction and hates cheesy stories"
-Enhanced Output: {
-  genres: ["Science Fiction", "Thriller", "Drama", "Action", "Adventure"],
-  excludeGenres: ["Romance Comedy", "Melodrama", "Slapstick Comedy", "Parody"],
-  ageGroup: "Adult",
+Input: "I'm a 49-year-old guy who loves sci-fi and hates cheesy stories"
+
+Output: {
+  enhancedGenres: ["Science Fiction", "Thriller", "Drama", "Action"],
+  excludeGenres: ["Romance Comedy", "Melodrama", "Parody"],
   familyFriendly: true,
-  preferredThemes: ["Intelligent plots", "Thought-provoking", "Action-packed"],
+  preferredThemes: ["Intelligent plots", "Thought-provoking"],
   avoidThemes: ["Predictable plots", "Clichéd storylines"],
   searchTerms: ["family-friendly sci-fi", "intelligent action"]
 }
 ```
 
-#### 2. Movie Discovery Pipeline (`movie_discovery_and_data_fetching_node`)
+### 2. Movie Discovery Node 🎬
 
-**Architecture Type**: **Hybrid Pipeline** - Combines deterministic scraping with specialized data normalization agent
+**Purpose**: Discovers and processes movies from Prime Video through intelligent web scraping.
 
-**Responsibility**: Prime Video web scraping with intelligent caching, pagination, and agent-powered data normalization
+**Technology**: Cheerio HTML parsing + SQLite caching + Claude 3 Haiku for data normalization
 
-- **Web Scraping**: Real-time scraping of Prime Video movie listings using Cheerio HTML parser with simplified text extraction
-- **Cache Integration**: SQLite database caching achieving 100% cache hit rates for optimal performance
-- **Batch Processing**: Pagination-based processing with configurable batch sizes (default: 10 movies)
-- **Data Normalization Agent**: Claude 3 Haiku-powered metadata standardization and theme extraction with token monitoring
-- **Non-Agent Components**: Web scraper (deterministic), cache system (data persistence), rate limiting (rule-based)
-- **Rate Limiting**: Proper headers and delays to avoid detection while respecting service resources
-- **Structured Output**: Converts raw scraped data into typed Movie objects with comprehensive metadata
-- **Token Tracking**: Monitors normalization agent operations for cost analysis and performance optimization
-- **Pipeline Design Choice**: Hybrid approach combining deterministic data fetching with intelligent agent-powered normalization for production reliability
+**Key Features**:
 
-#### 3. Movie Evaluation React Agent (`intelligent_evaluation_node`)
+- **Live Scraping**: Real-time Prime Video data extraction
+- **Smart Caching**: SQLite database with 100% cache hit rates
+- **Batch Processing**: Configurable batch sizes (default: 10 movies)
+- **Data Normalization**: AI-powered metadata standardization
+- **Queue Management**: Intelligent handling of related movie discovery
+- **Rate Limiting**: Ethical scraping with proper delays
 
-**Agent Type**: **React Agent Subagent** - Autonomous tool-enabled agent within the larger MAS
+**Process Flow**:
 
-**Responsibility**: React Agent-powered movie evaluation with autonomous TMDB enrichment and advanced quality assessment
+1. Scrape Prime Video search results
+2. Extract movie links and basic metadata
+3. Check cache for existing normalized data
+4. Scrape missing movie details
+5. Normalize data with AI for consistency
+6. Queue related movies for future processing
+7. Return batch for evaluation
 
-- **React Agent Integration**: Implements ReAct (Reasoning + Acting) pattern using LangChain's createAgent from 'langchain' package
-- **Autonomous Tool Usage**: Agent automatically decides when to use TMDB enrichment based on data quality and completeness
-- **Intelligent Decision Making**: Evaluates movie descriptions, genre classifications, and metadata to determine enrichment necessity
-- **Parallel Batch Evaluation**: Evaluates current movie batch against enhanced user criteria using Promise.allSettled for optimal performance
-- **TMDB Auto-Enrichment**: Seamless integration of TMDB movie data when agent determines additional information is needed
-- **Tool Execution Flow**: Automated tool invocation and result integration without manual intervention
-- **Rate-Limited Enrichment**: TMDB API calls intelligently managed with SQLite caching to minimize API usage
-- **Multi-Dimensional Analysis**: Advanced reasoning across genre alignment, theme matching, age appropriateness, quality indicators, and cultural relevance
-- **Confidence Scoring**: Generates 0.0-1.0 confidence scores with detailed reasoning explanations (typically 75-85% for high matches)
-- **Quality Gate Optimization**: Uses ≥0.75 confidence threshold for high-quality matches (optimized from previous 0.6 threshold)
-- **Family Appropriateness**: Comprehensive content suitability assessment for family viewing contexts
-- **Candidate Filtering**: Identifies acceptable candidates (≥0.75 confidence) for accumulation in candidate pool
-- **Token Monitoring**: Comprehensive tracking of Claude 3.5 Sonnet operations + tool usage (~3,000-4,000 tokens per 10-movie batch)
-- **Production Validated**: Successfully tested in live environment with autonomous tool usage and optimal performance
-- **Subagent Design Choice**: React Agent subagent architecture for intelligent, autonomous movie analysis within the larger multi-agent system coordination
+### 3. Evaluation Node (React Agent) 🧠
 
-#### 4. Flow Control & Multi-Agent Orchestration (`shouldContinueSearching` + `batch_control_and_routing_node`)
+**Purpose**: Intelligently evaluates movies using a unified React Agent that handles both enrichment and evaluation.
 
-**Architecture Type**: **Rule-Based Orchestration System** - Coordinates multi-agent workflow execution
+**Technology**: AWS Bedrock Claude 3.5 Sonnet + LangChain React Agent + TMDB API
 
-**Responsibility**: Multi-agent coordination, pagination management, candidate accumulation, final recommendation compilation, and token reporting
+**Single Agent Features**:
 
-- **Candidate Accumulation**: Collects acceptable candidates (≥0.75 confidence) across multiple batches
-- **Pagination Logic**: Manages batch offsets and determines when more movies are available for processing
-- **Threshold Management**: Continues processing until minimum candidates (5) are found or movies exhausted
-- **Final Compilation**: Sorts accumulated candidates by confidence score and selects top 5 recommendations with diversity optimization
-- **Comprehensive Output**: Includes movie descriptions, detailed reasoning, and complete metadata in final display
-- **Token Reporting**: Provides comprehensive usage summary with total tokens, input/output breakdown, and operation count
-- **Multi-Agent Coordination**: Orchestrates execution flow between specialized agent components
-- **Adaptive Termination**: Balances quality requirements with available movie inventory and resource consumption
-- **Orchestration Design Choice**: Rule-based coordination system with complete transparency into multi-agent resource usage and recommendation quality
+- **Unified Processing**: Single agent handles both TMDB enrichment decisions AND movie evaluation
+- **Autonomous Tool Usage**: Decides when TMDB enrichment is needed during evaluation
+- **Integrated Analysis**: Combines enrichment and scoring in one seamless process
+- **Automatic Iteration**: Can call tools multiple times as needed for complete analysis
 
-## Multi-Agent System Architecture
+**Evaluation Strategy Factory**:
+The system includes a factory pattern that can switch between two strategies:
 
-### System Classification
+- **Single Agent Strategy**: Unified React agent for both enrichment and evaluation
+- **Pipeline Strategy**: Multi-step process with specialized React agents (alternative)
 
-Our implementation represents a **Composite Multi-Agent System (MAS)** with the following architectural characteristics:
+**Scoring Criteria**:
 
-- **LangGraph = Orchestration Framework**: LangGraph serves as the multi-agent coordination framework, not an agent itself
-- **Specialized Agent Components**: Each LLM-powered component is a specialized agent with distinct capabilities
-- **React Agent Subagent**: The evaluation component contains an autonomous React Agent for tool management
-- **Emergent Intelligence**: The system exhibits intelligent behavior through agent collaboration
-- **Hierarchical Structure**: Workflow-level orchestration with task-level specialized agents
+- Genre alignment with user preferences (0.0-1.0)
+- Theme matching and content appropriateness (0.0-1.0)
+- Age suitability and family-friendliness (0.0-1.0)
+- Quality indicators and cultural relevance (0.0-1.0)
+- Overall confidence scores with ≥0.75 threshold
 
-### Agent Classification Matrix
+**Single Agent Workflow**:
 
-| Component                 | Type                | Intelligence   | Autonomy          | Tools    |
-| ------------------------- | ------------------- | -------------- | ----------------- | -------- |
-| **LangGraph Workflow**    | Orchestrator        | Rule-based     | Coordinated       | None     |
-| **Prompt Enhancement**    | Specialized Agent   | LLM-powered    | Goal-oriented     | None     |
-| **Movie Discovery**       | Hybrid Pipeline     | Mixed          | Semi-autonomous   | Web APIs |
-| **Data Normalizer**       | Specialized Agent   | LLM-powered    | Task-focused      | None     |
-| **React Agent Evaluator** | **Subagent**        | **Autonomous** | **Self-directed** | **TMDB** |
-| **Flow Control**          | Orchestration Logic | Rule-based     | Deterministic     | None     |
-| **Web Scraper**           | Tool/Service        | Deterministic  | Programmatic      | HTTP     |
-| **Cache System**          | Tool/Service        | None           | Reactive          | Database |
+1. Receives movie data and user criteria
+2. Automatically assesses if TMDB enrichment is needed
+3. Calls TMDB tool if additional data would improve evaluation
+4. Integrates enriched data seamlessly into analysis
+5. Provides complete multi-dimensional scoring in single response
 
-### Multi-Agent Collaboration Patterns
+### 4. Flow Control & Batch Management 🔄
 
-1. **Sequential Coordination**: Agents execute in coordinated sequence with shared state
-2. **Autonomous Decision Making**: React Agent independently decides tool usage within its domain
-3. **Resource Sharing**: All agents share common state and token tracking infrastructure
-4. **Hierarchical Communication**: Orchestrator manages high-level flow while agents handle specialized tasks
-5. **Emergent Problem Solving**: Complex recommendation logic emerges from agent interaction
+**Purpose**: Orchestrates the workflow and manages candidate accumulation across batches.
 
-## Key Architectural Decisions
+**Decision Logic**:
 
-### React Agent Subagent Implementation
+- **Continue Search**: If < 5 acceptable candidates and more movies available
+- **Complete Search**: If ≥5 candidates found or movie inventory exhausted
+- **Quality Gates**: Maintains minimum confidence thresholds
 
-- **Decision**: Implement React Agent pattern using LangChain's createAgent for autonomous TMDB movie enrichment
-- **Implementation**: Agent automatically analyzes movie data quality and decides when to invoke TMDB enrichment tool
-- **Rationale**:
-  - **Autonomous Intelligence**: Agent makes intelligent decisions about when enrichment is needed based on data completeness
-  - **Quality Assessment**: Evaluates movie descriptions, genre classifications, and metadata to determine enrichment necessity
-  - **Seamless Integration**: Tool results are automatically incorporated into evaluation process without manual intervention
-  - **Production Efficiency**: Reduces system complexity by eliminating manual tool decision logic
-  - **Cost Optimization**: Only enriches movies when additional data would improve evaluation confidence
-  - **Scalable Pattern**: React Agent architecture scales to additional tools and enrichment sources
+**Final Processing**:
 
-**React Agent Features**:
-
-- **Intelligent Tool Selection**: Agent autonomously decides when TMDB enrichment will improve evaluation quality
-- **Data Quality Analysis**: Evaluates existing movie metadata completeness and accuracy before tool invocation
-- **Automated Integration**: Tool results seamlessly incorporated into evaluation reasoning and scoring
-- **Fallback Handling**: Graceful degradation when tools fail or return incomplete data
-- **Performance Optimization**: Tool usage tracked and optimized based on actual improvement in confidence scores
-- **Production Validated**: Successfully tested in live environment with autonomous tool decision-making
-
-**Example Agent Decision Process**:
-
-```
-Movie: "Culpa Nuestra" (2024) - Short description, unclear genre classification
-Agent Analysis: Description < 50 characters, genre classification seems incomplete
-Agent Decision: Invoke TMDB enrichment tool for additional plot details and verified genres
-Tool Result: Enhanced plot summary, verified genre classification, TMDB rating
-Evaluation: Improved confidence score from enhanced data quality
-```
-
-### Comprehensive Token Consumption Tracking
-
-- **Decision**: Global token tracking system with detailed monitoring across all LLM operations
-- **Implementation**: TokenTracker utility class integrated with all LLM services (evaluation, enhancement, normalization)
-- **Rationale**:
-  - Complete visibility into resource consumption for cost analysis and budget planning
-  - Performance optimization insights through detailed input/output token breakdowns
-  - Operational transparency with total token counts and operation statistics
-  - Production-ready resource monitoring for enterprise deployments
-  - Cost prediction and optimization capabilities for large-scale usage
-
-**Token Tracking Features**:
-
-- **Real-time Monitoring**: Tracks tokens for each LLM operation as it occurs
-- **Detailed Breakdown**: Separates input tokens (prompts) from output tokens (responses)
-- **Operation Counting**: Monitors total number of LLM calls across the workflow
-- **Service Attribution**: Tracks usage by service (prompt enhancement, movie evaluation, normalization)
-- **Final Reporting**: Comprehensive usage summary in final output with formatted statistics
-
-**Typical Token Consumption** (based on test run with 127,889 total tokens):
-
-- Prompt Enhancement: ~500-800 tokens per operation
-- Movie Evaluation: ~3,000-4,000 tokens per 10-movie batch
-- Movie Normalization: ~400-600 tokens per movie batch
-- Total Workflow: ~120,000-130,000 tokens for complete recommendation process
-
-### Enhanced Prompt Processing
-
-- **Decision**: Dedicated Claude 3 Haiku-powered prompt enhancement as first step
-- **Rationale**:
-  - Transforms vague user requests into structured search criteria with genre mapping and theme extraction
-  - Improves downstream search accuracy and relevance through semantic understanding
-  - Handles complex contextual requirements (family-friendly, age-appropriate content)
-  - Cost-effective model choice for fast text analysis without sacrificing quality
-
-### Production Web Scraping with Caching
-
-- **Decision**: Real-time Prime Video scraping with SQLite caching layer
-- **Rationale**:
-  - Live data ensures current movie availability and pricing information
-  - Intelligent caching minimizes redundant scraping and improves performance
-  - Rate limiting and proper headers maintain ethical scraping practices
-  - LLM-powered normalization ensures consistent data quality
-
-### Pagination-Based Candidate Accumulation
-
-- **Decision**: Process movies in paginated batches while accumulating acceptable candidates
-- **Rationale**:
-  - Prevents overwhelming Claude 3.5 Sonnet with large batch sizes for optimal reasoning quality
-  - Enables early termination when sufficient high-quality candidates are found
-  - Better resource management and cost control for production LLM usage
-  - Maintains comprehensive coverage of available movie inventory
-
-### Intelligent Threshold Management
-
-- **Decision**: Candidate accumulation with configurable quality thresholds
-- **Rationale**:
-  - Balances recommendation quality with system responsiveness
-  - Ensures sufficient variety in final recommendations through continued search
-  - Prevents infinite processing loops with clear termination conditions
-  - Adapts to movie availability and user criteria specificity
-
-### Multi-Agent System Architecture Decision
-
-- **Decision**: Implement composite multi-agent system with specialized agent components and React Agent subagent
-- **Rationale**:
-  - **Separation of Concerns**: Each agent specializes in specific domain expertise (NLP, data processing, evaluation)
-  - **Scalability**: New agent types can be added without modifying existing agent logic
-  - **Maintainability**: Isolated agent responsibilities enable independent development and testing
-  - **Fault Tolerance**: Agent failures can be contained without system-wide impact
-  - **Resource Optimization**: Specialized agents use appropriate models for their tasks (Haiku for speed, Sonnet for reasoning)
-
-### React Agent Subagent for Autonomous Tool Usage
-
-- **Decision**: Embed React Agent subagent for intelligent TMDB enrichment with LangChain's createAgent
-- **Rationale**:
-  - Autonomous decision-making reduces manual tool management complexity
-  - Intelligent data quality assessment improves enrichment accuracy
-  - Seamless tool integration enhances user experience and system efficiency
-  - Production-validated approach ensures reliability and optimal resource usage
-  - Eliminates need for manual tool invocation logic and decision trees
-
-### Production LLM Integration with React Agent and Token Tracking
-
-- **Decision**: AWS Bedrock with React Agent integration and comprehensive resource monitoring
-- **Rationale**:
-  - Enterprise-grade reliability and security for production deployments
-  - Model selection optimized for specific tasks (Claude 3 Haiku for speed, Claude 3.5 Sonnet for reasoning)
-  - Comprehensive error handling and fallback strategies for service resilience
-  - Structured output validation using Zod schemas for data consistency
-  - Complete token consumption tracking for cost analysis and performance optimization
-  - Resource transparency enabling budget planning and usage optimization
-
-### Multi-Agent Technology Stack
-
-- **LangGraph.js v1**: Multi-agent orchestration framework with Annotation.Root() state management
-- **TypeScript**: Type safety and better developer experience across all agent components
-- **Multi-Agent Architecture**: Composite system with specialized agent roles and responsibilities
-- **React Agent Pattern**: LangChain's createAgent from 'langchain' package for autonomous subagent tool usage
-- **AWS Bedrock**: Production LLM integration via @langchain/aws ChatBedrockConverse
-  - **Claude 3 Haiku**: Specialized agents for fast prompt enhancement and content analysis (~500-800 tokens/operation)
-  - **Claude 3.5 Sonnet**: React Agent subagent for advanced reasoning and evaluation (~3,000-4,000 tokens/batch + tool overhead)
-- **TMDB Integration**: Intelligent movie data enrichment via @langchain/community tools (React Agent managed)
-- **Token Tracking**: Custom TokenTracker utility for comprehensive multi-agent resource monitoring
-- **Web Scraping**: Live Prime Video scraping using Cheerio HTML parser with simplified text extraction
-- **SQLite Database**: Production movie caching with better-sqlite3 achieving 100% cache hit rates
-- **Winston**: Structured logging with DEBUG level for comprehensive multi-agent tracing
-- **Zod**: Runtime schema validation for LLM outputs and agent data consistency
+- Accumulates candidates across all batches
+- Sorts by confidence score with diversity optimization
+- Selects top 5 recommendations
+- Provides comprehensive summaries with reasoning
 
 ## State Management
 
-### Modern LangGraph v1 State Structure with Token Tracking
+### LangGraph v1 State Structure
+
+The workflow uses modern `Annotation.Root()` pattern for type-safe state management:
 
 ```typescript
 const VideoRecommendationAgentState = Annotation.Root({
-  // Input from user
+  // User input and enhanced criteria
   userInput: Annotation<string>,
-
-  // Enhanced criteria from prompt enhancement node
   enhancedUserCriteria: Annotation<UserCriteria | null>,
 
-  // Movie discovery and pagination state
-  allDiscoveredMovies: Annotation<Movie[]>, // All movies found so far
+  // Movie discovery and processing
+  processedMovies: Annotation<ProcessedMovie[]>, // All discovered movies
   discoveredMoviesBatch: Annotation<Movie[]>, // Current batch for evaluation
-  movieBatchOffset: Annotation<number>, // Current position in all movies
-  movieBatchSize: Annotation<number>, // How many movies to send to evaluation per batch
-  processedMovies: Annotation<Movie[]>, // Normalized movies from web scraping
-  movieLinksQueue: Annotation<MovieLink[]>, // Queued links for processing
+  movieBatchOffset: Annotation<number>, // Pagination position
+  movieBatchSize: Annotation<number>, // Batch size (default: 10)
 
-  // Evaluation results and candidate accumulation
-  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>, // Current batch evaluations
-  allAcceptableCandidates: Annotation<MovieEvaluation[]>, // All good candidates so far (≥0.75 confidence)
+  // Movie link queue for discovery
+  movieLinksQueue: Annotation<MovieLink[]>,
+  processedUrls: Annotation<Set<string>>,
+  discoveryDepth: Annotation<number>,
+  maxDiscoveryDepth: Annotation<number>,
+
+  // Evaluation and candidate management
+  evaluatedMoviesBatch: Annotation<MovieEvaluation[]>,
+  allAcceptableCandidates: Annotation<MovieEvaluation[]>, // ≥0.75 confidence
   qualityGatePassedSuccessfully: Annotation<boolean>,
-  highConfidenceMatchCount: Annotation<number>,
-  minimumAcceptableCandidates: Annotation<number>, // Minimum candidates needed (default: 5)
+  minimumAcceptableCandidates: Annotation<number>, // Default: 5
 
-  // Control flow state
+  // Workflow control
   searchAttemptNumber: Annotation<number>,
   maximumSearchAttempts: Annotation<number>,
   finalRecommendations: Annotation<MovieEvaluation[]>,
+  workflowCompleted: Annotation<boolean>,
 
-  // Token consumption tracking
-  totalTokensConsumed: Annotation<number>, // Accumulated token usage across all LLM operations
-
-  // Discovery and processing state
-  discoveryDepth: Annotation<number>, // Current depth for recursive discovery
-  maxDiscoveryDepth: Annotation<number>, // Maximum recursion depth
-  processedUrls: Annotation<string[]>, // URLs already processed to avoid duplicates
-
-  // Error handling
+  // Resource tracking and error handling
+  totalTokensConsumed: Annotation<number>,
   lastErrorMessage: Annotation<string | undefined>,
 });
 ```
 
-### Multi-Agent Coordination and Routing Logic
+## Technology Stack
 
-- **Primary Agent Flow**: Prompt Enhancement Agent → Movie Discovery Pipeline → React Agent Evaluation → Multi-Agent Orchestration
-- **Pagination Coordination**: Orchestrator → (Need more candidates + movies available) → Movie Discovery Pipeline (next batch with offset)
-- **Completion Coordination**: Orchestrator → (Sufficient candidates ≥5 OR movies exhausted) → Batch Control → Final Recommendations with Multi-Agent Token Summary
-- **Fallback Coordination**: Orchestrator → (Max attempts reached) → Batch Control → Best Available Results → End
-- **Quality Threshold**: Minimum 5 acceptable candidates (≥0.75 confidence score) from React Agent evaluation with diversity optimization
-- **Multi-Agent Token Tracking**: Comprehensive monitoring across all agent operations with detailed resource attribution
+### Core Technologies
 
-## Production Implementation Approach
+- **🧠 LangGraph.js v1**: Workflow orchestration with modern `Annotation.Root()` state
+- **⚡ TypeScript**: Full type safety across all components
+- **🎯 AWS Bedrock**: Production LLM integration
+  - **Claude 3 Haiku**: Fast prompt enhancement (~500-800 tokens)
+  - **Claude 3.5 Sonnet**: Advanced evaluation (~3,000-4,000 tokens per batch)
+- **🤖 LangChain**: React Agent creation and tool management
+- **🎬 TMDB API**: Movie data enrichment via React Agents
+- **🌐 Cheerio**: HTML parsing for Prime Video scraping
+- **💾 SQLite**: Movie caching with `better-sqlite3`
+- **📊 Winston**: Structured logging with debug-level tracing
+- **✅ Zod**: Runtime schema validation for LLM outputs
 
-### Real-World Integration Strategy
+### Development & Testing
 
-The current implementation uses production-grade services and APIs:
+- **🧪 Jest**: Unit and integration testing
+- **🔧 ts-node-dev**: Development server with hot reload
+- **📝 ESLint**: Code quality and consistency
+- **🔍 TypeScript**: Compile-time error detection
+- **🌍 Node.js**: Runtime environment with modern features
 
-- **AWS Bedrock Integration**: Live Claude 3 Haiku and 3.5 Sonnet models with proper authentication
-- **Prime Video Web Scraping**: Real-time data fetching with Cheerio HTML parsing and anti-detection measures
-- **SQLite Database**: Persistent movie caching with better-sqlite3 for production performance
-- **Comprehensive Monitoring**: Every operation logged with timing, costs, and success metrics
+## Key Features & Benefits
 
-### Benefits of Production Approach
+### ✨ What Makes This System Special
 
-1. **Real Data Quality**: Current movie availability, ratings, and metadata from live sources
-2. **Scalable Architecture**: Caching, pagination, and batch processing for production loads
-3. **Enterprise Reliability**: Error handling, fallback strategies, and service resilience
-4. **Cost Optimization**: Smart caching and model selection to minimize operational expenses
+1. **🤖 Autonomous Intelligence**: React Agents make intelligent decisions about when to enrich movie data
+2. **📊 Resource Transparency**: Comprehensive token tracking provides complete cost visibility
+3. **⚡ Performance Optimized**: SQLite caching achieves 100% cache hit rates
+4. **🎯 Quality Focused**: ≥0.75 confidence threshold ensures high-quality recommendations
+5. **🔄 Batch Processing**: Handles large movie catalogs efficiently with pagination
+6. **🎬 Live Data**: Real-time Prime Video scraping for current availability
+7. **🛡️ Production Ready**: Enterprise error handling, logging, and monitoring
+8. **🧩 Modular Design**: Easy to extend with new agents and capabilities
 
-## Multi-Agent System Benefits
+### 🚀 Performance Characteristics
 
-This architecture demonstrates:
+- **Response Time**: ~30-60 seconds for complete workflow
+- **Token Efficiency**: ~120,000-130,000 tokens for full recommendation process
+- **Cache Performance**: 100% hit rate for previously discovered movies
+- **Batch Size**: 10 movies per evaluation batch (optimized for LLM context)
+- **Quality Gate**: Minimum 5 high-confidence recommendations
+- **Coverage**: Processes 50-200+ movies depending on catalog size
 
-1. **Modern LangGraph v1 Multi-Agent Patterns**: Latest Annotation.Root() state management with multi-agent coordination and comprehensive state tracking
-2. **Composite Multi-Agent Architecture**: Specialized agents with distinct capabilities orchestrated for complex problem solving
-3. **React Agent Subagent Integration**: Autonomous tool-enabled subagent with intelligent decision-making for optimal resource utilization
-4. **Multi-Agent Workflow Orchestration**: Complex multi-step processes with agent collaboration and adaptive quality thresholds
-5. **Production Multi-Agent LLM Integration**: Real AWS Bedrock integration across multiple specialized agents with comprehensive token tracking
-6. **Autonomous Tool Integration**: React Agent subagent manages TMDB enrichment with seamless data incorporation and quality assessment
-7. **Multi-Agent Resource Monitoring**: Complete visibility into agent-specific token consumption with detailed cost analysis and optimization insights
-8. **Scalable Agent Architecture**: Easy addition of new specialized agents without modifying existing agent logic
-9. **Web Scraping at Scale**: Live data fetching with intelligent caching (100% hit rates), rate limiting, and error recovery
-10. **Performance Optimization**: Pagination, caching, and batch processing for production scalability with multi-agent resource consumption awareness
-11. **Data Consistency**: Zod schema validation and SQLite persistence for reliable data handling across agents
-12. **Modular Multi-Agent Architecture**: Clear separation of concerns with specialized agent layers and coordinated token tracking
-13. **Autonomous Intelligence**: React Agent subagent pattern for self-directed tool usage and quality optimization
-14. **Agent Coordination**: LangGraph orchestration enabling complex multi-agent workflows with emergent problem-solving capabilities
-15. **Enterprise Logging**: Production-ready Winston logging with structured multi-agent tracing, debugging, and resource monitoring
-16. **Cost Transparency**: Comprehensive multi-agent token usage reporting enabling budget planning and performance optimization
+## Usage & Examples
+
+### Running the Agent
+
+```bash
+# Development mode with hot reload
+npm run dev
+
+# Production build and run
+npm run build && npm start
+
+# Run tests
+npm test
+
+# Run with specific log level
+LOG_LEVEL=debug npm run dev
+```
+
+### Environment Configuration
+
+```bash
+# Required AWS credentials for Bedrock
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_REGION=us-east-1
+
+# Optional: Model configuration
+BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
+EVALUATION_BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
+
+# Optional: Strategy selection
+MOVIE_EVALUATION_STRATEGY=pipeline # or 'single-agent'
+
+# Optional: TMDB integration
+TMDB_API_KEY=your_tmdb_key
+```
+
+### Example Usage
+
+```typescript
+import { runVideoRecommendationAgent } from './index';
+
+const result = await runVideoRecommendationAgent(
+  "I'm looking for intelligent sci-fi movies for family viewing",
+);
+
+console.log(`Found ${result.recommendations.length} recommendations`);
+result.recommendations.forEach((movie, index) => {
+  console.log(`${index + 1}. ${movie.movie.title} (${movie.confidenceScore})`);
+});
+```
+
+## Architecture Benefits
+
+### 🎯 Design Principles
+
+1. **Separation of Concerns**: Each component has a single, well-defined responsibility
+2. **Autonomous Intelligence**: Agents make intelligent decisions without manual intervention
+3. **Resource Efficiency**: Smart caching and batch processing minimize costs
+4. **Quality Focus**: Multiple quality gates ensure excellent recommendations
+5. **Extensibility**: Easy to add new agents, tools, and capabilities
+6. **Observability**: Comprehensive logging and monitoring throughout
+
+### 🔄 Workflow Advantages
+
+- **Early Termination**: Stops when quality criteria are met
+- **Graceful Degradation**: Handles failures at each stage
+- **Resource Control**: Token tracking prevents runaway costs
+- **Adaptive Processing**: Adjusts batch sizes based on performance
+- **Quality Assurance**: Multiple validation layers ensure consistency
 
 ## Future Enhancements
 
-### Phase 2 Multi-Agent Enhancements
+### 🚀 Potential Improvements
 
-- **Multi-Tool React Agents**: Extend React Agent subagent to include multiple enrichment sources (IMDb, Rotten Tomatoes, etc.)
-- **Additional Specialized Agents**: Add new agent types for user preference learning, content similarity analysis, and quality assessment
-- **Advanced Agent Reasoning**: Implement more sophisticated decision trees for tool selection and data fusion within agent hierarchy
-- **Multi-Platform Discovery Agents**: Deploy specialized scraping agents for Netflix, Hulu, Disney+, etc.
-- **Parallel Multi-Agent Processing**: Concurrent execution of multiple agent types for improved performance
-- **Agent Communication Protocols**: Implement direct agent-to-agent communication for enhanced coordination
-- **Advanced User Modeling Agent**: Machine learning-based agent for preference learning from user feedback and ratings
-- **Streaming Availability Agent**: Dedicated agent for JustWatch or similar services integration
+1. **Multi-Platform Support**: Extend to Netflix, Hulu, Disney+
+2. **Advanced Personalization**: User preference learning over time
+3. **Social Integration**: Incorporate ratings from friends and critics
+4. **Real-Time Notifications**: Alert when new movies match preferences
+5. **Content Similarity**: Vector embeddings for advanced matching
+6. **Cost Optimization**: Dynamic model selection based on task complexity
+7. **Streaming Integration**: Direct links to watch on preferred platforms
+8. **Review Analysis**: Sentiment analysis of user reviews
 
-### Advanced Multi-Agent Features
+---
 
-- **Domain-Specific Agent Specialization**: Deploy specialized React Agent subagents for different content domains (movies, TV shows, documentaries)
-- **Agent Learning Systems**: Machine learning-based optimization of agent behavior and tool usage patterns based on success rates
-- **Multi-Agent Collaboration Networks**: Enable direct agent-to-agent communication and collaborative problem solving
-- **Adaptive Agent Coordination**: Dynamic agent role assignment based on task complexity and domain requirements
-- **Agent Performance Analytics**: Comprehensive monitoring and optimization of individual agent performance metrics
-- **Real-Time Price Monitoring Agent**: Dedicated agent for tracking subscription costs and promotional offers across platforms
-- **Social Recommendation Agent**: Specialized agent for incorporating ratings and reviews from trusted critics and friends
-- **Content Similarity Agent**: Vector embeddings agent for advanced content-based filtering and clustering
-- **Personalization Agent**: Adaptive scoring agent based on individual user viewing history and preferences
-
-## Implementation Notes
-
-### LangGraph v1 Modernization
-
-- **State Definition**: Uses modern `Annotation.Root()` pattern instead of deprecated channels
-- **Type Safety**: Improved TypeScript integration with `typeof VideoRecommendationAgentState.State`
-- **Constructor**: Modern `new StateGraph(VideoRecommendationAgentState)` syntax
-- **Future-Proof**: Compatible with latest LangGraph.js ecosystem updates
-
-### Production Architecture
-
-- **Real HTTP Operations**: Live web scraping with proper rate limiting and error handling
-- **Production LLM Calls**: AWS Bedrock integration with cost tracking and response validation
-- **Intelligent Caching**: SQLite database with cache hit optimization and performance metrics
-- **Error Boundaries**: Comprehensive error recovery and graceful degradation strategies
-
-### Production Logging with Winston
-
-- Node-level execution tracking with timing and performance metrics
-- HTTP request/response logging for web scraping operations with success rates
-- LLM interaction logging with token usage, costs, and response quality metrics
-- Candidate accumulation and quality gate evaluation with detailed decision reasoning
-- Cache performance monitoring and database operation tracking
-- Context-aware child loggers for different system components and services
+_This documentation reflects the current implementation as of the system architecture review. The codebase demonstrates production-ready patterns for building intelligent agents with LangGraph.js v1 and modern AI technologies._
