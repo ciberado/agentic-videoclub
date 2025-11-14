@@ -657,7 +657,33 @@ const videoRecommendationWorkflow = new StateGraph(VideoRecommendationAgentState
 
 :::
 
-[](.coverbg.header-left)
+[](#rules,.illustration.header-right.partial)
+
+### Rules after midnight
+
+![Gizmo Figurine in a Santa Hat, by Orientation, https://www.pexels.com/photo/gizmo-figurine-in-a-santa-hat-14746117/](https://images.pexels.com/photos/14746117/pexels-photo-14746117.jpeg)
+
+- Set a a maximum execution **time**
+- Provide excellent **explainability**
+- Be generous with your logs
+- Simpler is better
+- **No AI** is better
+
+[](.coverbg.no-header)
+
+### Enshitification
+
+![](images/enshittification.jpg)
+
+::: Notes
+
+- Cory doctorow, activist
+- Ed Zitron, reporter
+- Whitney Strix Beltrán, game designer
+
+:::
+
+[](#future,.illustration.header-left)
 
 ### The Future
 
@@ -666,6 +692,8 @@ const videoRecommendationWorkflow = new StateGraph(VideoRecommendationAgentState
 To explore strange new worlds, to seek out new life and new civilizations, to boldly go where no one has gone before
 
 [tinyurl.com/ghavid](https://tinyurl.com/ghavid)
+
+![tinyurl.com/ghavid qr code](images/ghavid-qr.png)
 
 ::: Notes
 
