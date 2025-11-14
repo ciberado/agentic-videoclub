@@ -12,7 +12,7 @@
 - [Bedrock Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)
 - [Enshittification and the Rot Economy: A Deep Dives Conversation with Cory Doctorow and Ed Zitron](https://www.youtube.com/watch?v=Tz71pIWbFyc)
 - [Postgrado de Arquitectura de Public Cloud (UPC School)](https://www.talent.upc.edu/esp/estudis/formacio/curs/319400/postgrau-cloud-computing-architecture/)
-- [Javi en Linkedin](https://www.linkedin.com/in/javier-more/)
+- [Javi at Linkedin](https://www.linkedin.com/in/javier-more/)
 
 ## Rules After Midnight (Production Guidelines)
 
